@@ -35,9 +35,58 @@ private func formatResult(_ value: Double) -> String {
     return str
 }
 
+// MARK: - Token Types
+
+enum Token: CustomStringConvertible {
+    case number(Double)
+    case ident(String)
+    case op(String)
+    case lparen
+    case rparen
+    case comma
+
+    var description: String {
+        switch self {
+        case .number(let v): return "\(v)"
+        case .ident(let s): return s
+        case .op(let s):    return s
+        case .lparen:       return "("
+        case .rparen:       return ")"
+        case .comma:        return ","
+        }
+    }
+}
+
+struct LocatedToken {
+    let token: Token
+    let range: Range<String.Index>
+}
+
+// MARK: - Supporting Types
+
+struct FunctionDefinition {
+    let name: String
+    let parameters: [String]
+    let body: [String]
+}
+
 // MARK: - Engine
 
-private class CalculatorEngine {
+class CalculatorEngine {
+
+    static let builtInFunctions: Set<String> = [
+        "sqrt", "cbrt", "abs", "ceil", "floor", "round",
+        "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+        "log", "log2", "log10", "exp", "pow",
+        "min", "max", "hypot"
+    ]
+
+    let builtInConstants: Set<String> = [
+        "pi", "π", "e", "phi", "φ",
+        "sqrt2", "sqrt3", "ln2", "ln10", "log2e", "log10e",
+        "tau", "τ", "inf", "infinity", "nan",
+        "c", "g", "G", "h", "k", "Na", "R"
+    ]
 
     var variables: [String: Double] = [
         "pi":      Double.pi,
@@ -68,15 +117,12 @@ private class CalculatorEngine {
     var functions: [String: FunctionDefinition] = [:]
 
     func evaluate(lines: [String]) -> [String] {
-        // Annotate every input line as either a function-definition line (→ "")
-        // or an evaluable line (→ its result).
         let annotated = collectFunctions(from: lines)
         var results: [String] = []
 
         for entry in annotated {
             switch entry {
             case .functionLine:
-                // Function header, body, and closing brace all become ""
                 results.append("")
 
             case .evaluable(let raw):
@@ -98,16 +144,12 @@ private class CalculatorEngine {
 
     // MARK: - Function Collection
 
-    /// Classifies each input line as either part of a function definition
-    /// (`.functionLine`) or a normal evaluable line (`.evaluable`).
-    /// Function definitions are registered as a side effect.
-    /// The returned array is always the same length as `lines`.
-    private enum AnnotatedLine {
-        case functionLine       // header, body line, or closing brace
-        case evaluable(String)  // any other line
+    enum AnnotatedLine {
+        case functionLine
+        case evaluable(String)
     }
 
-    private func collectFunctions(from lines: [String]) -> [AnnotatedLine] {
+    func collectFunctions(from lines: [String]) -> [AnnotatedLine] {
         var annotated: [AnnotatedLine] = []
         var i = 0
 
@@ -115,13 +157,11 @@ private class CalculatorEngine {
             let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
 
             if let funcDef = tryParseFunctionHeader(trimmed) {
-                // Mark the header line
                 annotated.append(.functionLine)
                 i += 1
 
                 var bodyLines: [String] = []
 
-                // Consume body lines until the closing brace
                 while i < lines.count {
                     let bodyLine = lines[i].trimmingCharacters(in: .whitespaces)
                     annotated.append(.functionLine)
@@ -146,12 +186,12 @@ private class CalculatorEngine {
         return annotated
     }
 
-    private struct FunctionHeader {
+    struct FunctionHeader {
         let name: String
         let parameters: [String]
     }
 
-    private func tryParseFunctionHeader(_ line: String) -> FunctionHeader? {
+    func tryParseFunctionHeader(_ line: String) -> FunctionHeader? {
         let pattern = #"^([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\s*\{$"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
@@ -180,7 +220,7 @@ private class CalculatorEngine {
         return try evaluateExpression(line, localVars: [:])
     }
 
-    private func findTopLevelAssignment(in line: String) -> String.Index? {
+    func findTopLevelAssignment(in line: String) -> String.Index? {
         var depth = 0
         var prev: Character = "\0"
         var i = line.startIndex
@@ -201,7 +241,7 @@ private class CalculatorEngine {
         return nil
     }
 
-    private func isValidIdentifier(_ s: String) -> Bool {
+    func isValidIdentifier(_ s: String) -> Bool {
         guard !s.isEmpty else { return false }
         return s.range(of: #"^[a-zA-Z_][a-zA-Z0-9_]*$"#, options: .regularExpression) != nil
     }
@@ -209,7 +249,8 @@ private class CalculatorEngine {
     // MARK: - Expression Evaluation (Recursive Descent Parser)
 
     func evaluateExpression(_ expr: String, localVars: [String: Double]) throws -> Double {
-        let tokens = try tokenize(expr)
+        let locatedTokens = try tokenize(expr)
+        let tokens = locatedTokens.map { $0.token }
         var pos = 0
         let result = try parseAddSub(tokens: tokens, pos: &pos, localVars: localVars)
         if pos != tokens.count {
@@ -239,7 +280,7 @@ private class CalculatorEngine {
                 switch op {
                 case "*": left = left * right
                 case "/": left = left / right
-                case "%": left = (left / 100.0) * right
+                case "%": left = left.truncatingRemainder(dividingBy: right)
                 default: break
                 }
             } else { break }
@@ -270,8 +311,15 @@ private class CalculatorEngine {
         var val = try parsePrimary(tokens: tokens, pos: &pos, localVars: localVars)
         while pos < tokens.count, case .op(let op) = tokens[pos], op == "%" {
             let nextPos = pos + 1
-            if nextPos < tokens.count, case .op(let nextOp) = tokens[nextPos], nextOp == "*" || nextOp == "/" {
-                break
+            // If the next token starts a new operand, this % is binary modulo —
+            // leave it for parseMulDiv to handle.
+            if nextPos < tokens.count {
+                switch tokens[nextPos] {
+                case .number, .ident, .lparen:
+                    return val
+                default:
+                    break // operator, rparen, comma, or end → postfix percentage
+                }
             }
             val = val / 100.0
             pos += 1
@@ -394,28 +442,8 @@ private class CalculatorEngine {
 
     // MARK: - Tokenizer
 
-    private enum Token: CustomStringConvertible {
-        case number(Double)
-        case ident(String)
-        case op(String)
-        case lparen
-        case rparen
-        case comma
-
-        var description: String {
-            switch self {
-            case .number(let v): return "\(v)"
-            case .ident(let s): return s
-            case .op(let s):    return s
-            case .lparen:       return "("
-            case .rparen:       return ")"
-            case .comma:        return ","
-            }
-        }
-    }
-
-    private func tokenize(_ expr: String) throws -> [Token] {
-        var tokens: [Token] = []
+    func tokenize(_ expr: String) throws -> [LocatedToken] {
+        var tokens: [LocatedToken] = []
         var i = expr.startIndex
 
         while i < expr.endIndex {
@@ -425,6 +453,8 @@ private class CalculatorEngine {
                 i = expr.index(after: i)
                 continue
             }
+
+            let tokenStart = i
 
             if ch.isNumber || (ch == "." && expr.index(after: i) < expr.endIndex && expr[expr.index(after: i)].isNumber) {
                 var numStr = ""
@@ -445,7 +475,7 @@ private class CalculatorEngine {
                     }
                 }
                 guard let value = Double(numStr) else { throw CalcError.invalidNumber(numStr) }
-                tokens.append(.number(value))
+                tokens.append(LocatedToken(token: .number(value), range: tokenStart..<i))
                 continue
             }
 
@@ -455,19 +485,19 @@ private class CalculatorEngine {
                     ident.append(expr[i])
                     i = expr.index(after: i)
                 }
-                tokens.append(.ident(ident))
+                tokens.append(LocatedToken(token: .ident(ident), range: tokenStart..<i))
                 continue
             }
 
             switch ch {
             case "+", "-", "*", "/", "^", "%":
-                tokens.append(.op(String(ch)))
+                tokens.append(LocatedToken(token: .op(String(ch)), range: tokenStart..<expr.index(after: i)))
             case "(":
-                tokens.append(.lparen)
+                tokens.append(LocatedToken(token: .lparen, range: tokenStart..<expr.index(after: i)))
             case ")":
-                tokens.append(.rparen)
+                tokens.append(LocatedToken(token: .rparen, range: tokenStart..<expr.index(after: i)))
             case ",":
-                tokens.append(.comma)
+                tokens.append(LocatedToken(token: .comma, range: tokenStart..<expr.index(after: i)))
             default:
                 throw CalcError.unknownCharacter(ch)
             }
@@ -477,13 +507,7 @@ private class CalculatorEngine {
     }
 }
 
-// MARK: - Supporting Types
-
-private struct FunctionDefinition {
-    let name: String
-    let parameters: [String]
-    let body: [String]
-}
+// MARK: - Errors
 
 private enum CalcError: Error, LocalizedError {
     case unexpectedToken(String)
@@ -506,7 +530,7 @@ private enum CalcError: Error, LocalizedError {
         case .undefinedVariable(let v):  return "Undefined variable: '\(v)'"
         case .undefinedFunction(let f):  return "Undefined function: '\(f)'"
         case .wrongArgCount(let f):      return "Wrong argument count for function: '\(f)'"
-        case .missingReturn:             return "Function did not return a value"
+        case .missingReturn:            return "Function did not return a value"
         }
     }
 }
