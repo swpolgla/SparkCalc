@@ -28,6 +28,8 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
+            ARCHS='$(ARCHS_STANDARD)' \
+            ONLY_ACTIVE_ARCH=NO \
             | xcbeautify
 
       - name: Ad-hoc Sign
