@@ -1,0 +1,56 @@
+name: Build and Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    permissions:
+      contents: write   # Required to create releases and upload release assets
+      actions: write    # Required to upload workflow artifacts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build Release
+        run: |
+          xcodebuild \
+            -project sparkcalc.xcodeproj \
+            -scheme sparkcalc \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
+
+      - name: Ad-hoc Sign
+        run: |
+          codesign -s - --deep --force \
+            build/Build/Products/Release/sparkcalc.app
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ -z "$VERSION" ] && VERSION="0.0.0"
+          cd build/Build/Products/Release
+          zip -r "SparkCalc-v${VERSION}.zip" sparkcalc.app
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SparkCalc-${{ github.ref_name }}
+          path: build/Build/Products/Release/SparkCalc-*.zip
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Build/Products/Release/SparkCalc-*.zip
+          generate_release_notes: true
