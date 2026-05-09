@@ -92,4 +92,5 @@ struct CalculatorView: View {
 
 #Preview {
     CalculatorView(sheet: Sheet(name: "Preview"), isActive: true)
+        .environmentObject(ThemeSettings())
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// Real-time syntax highlighter for the calculator input pane.
 ///
@@ -21,10 +22,26 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     private var previousState: HighlightState?
     private var isHighlighting = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(engine: CalculatorEngine) {
         self.engine = engine
         super.init()
+    }
+
+    /// Binds the highlighter to a shared `ThemeSettings` so it re-highlights
+    /// whenever the user changes a syntax color.
+    func bind(to settings: ThemeSettings) {
+        cancellables.removeAll()
+        settings.$theme
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newTheme in
+                self?.theme = newTheme
+                guard let textView = self?.textView,
+                      let textStorage = textView.textStorage else { return }
+                self?.forceFullHighlight(on: textStorage)
+            }
+            .store(in: &cancellables)
     }
 
     /// Forces a complete re-highlight, discarding any incremental state.
@@ -541,8 +558,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     ) -> NSColor {
         switch locatedToken.token {
         case .number:
-            // Numbers intentionally use the default text color.
-            return theme.plainText
+            return theme.number
 
         case .ident(let name):
             // Function call?

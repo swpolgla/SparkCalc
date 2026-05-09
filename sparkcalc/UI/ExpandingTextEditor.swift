@@ -78,6 +78,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
     let undoManager: UndoManager
     let isActive: Bool
     var onSetup: (GrowingTextView) -> Void
+    @EnvironmentObject private var themeSettings: ThemeSettings
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -104,6 +105,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // Attach the syntax highlighter to the text storage
         textView.textStorage?.delegate = syntaxHighlighter
         syntaxHighlighter.textView = textView
+        syntaxHighlighter.bind(to: themeSettings)
 
         // Seed the text view with the current bound text so it displays
         // correctly when the view is recreated (e.g., on sheet switch).
