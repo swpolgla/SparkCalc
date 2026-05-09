@@ -43,6 +43,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     var theme = SyntaxTheme()
     var engine: CalculatorEngine
 
+    /// Set by ExpandingTextEditor during makeNSView so we can:
+    /// - disable undo registration while applying highlight attributes
+    /// - optionally access view-specific context later
+    weak var textView: NSTextView?
+
     private var previousState: HighlightState?
     private var isHighlighting = false
 
@@ -53,7 +58,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     /// Forces a complete re-highlight, discarding any incremental state.
     /// Call this after external changes that may strip text attributes
-    /// (e.g., font assignment, string replacement from SwiftUI).
+    /// (e.g., font assignment, programmatic text replacement).
     func forceFullHighlight(on textStorage: NSTextStorage) {
         previousState = nil
         performHighlighting(on: textStorage)
@@ -146,6 +151,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             }
         }
 
+        // Ensure highlight attribute updates do not pollute undo stack.
+        let undoManager = textView?.undoManager
+        undoManager?.disableUndoRegistration()
+        defer { undoManager?.enableUndoRegistration() }
+
         textStorage.beginEditing()
 
         // Process each line from startLine onward
@@ -172,7 +182,6 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             highlightLine(
                 line: line,
                 classification: classification,
-                lineNSRange: lineNSRange,
                 charOffset: charOffset,
                 knownVariables: &knownVariables,
                 classificationEngine: classificationEngine,
@@ -253,7 +262,6 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     private func highlightLine(
         line: String,
         classification: LineKind,
-        lineNSRange: NSRange,
         charOffset: Int,
         knownVariables: inout Set<String>,
         classificationEngine: CalculatorEngine,
@@ -306,8 +314,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         classificationEngine: CalculatorEngine,
         textStorage: NSTextStorage
     ) {
-        // Check for top-level assignment — we must split around '=' because
-        // the tokenizer does not recognize '=' as a token.
+        // Assignment split is required because tokenizer does not recognize '='.
         if let assignIdx = classificationEngine.findTopLevelAssignment(in: line) {
             let leftSide = String(line[line.startIndex..<assignIdx])
             let rightSide = String(line[line.index(after: assignIdx)...])
@@ -315,29 +322,26 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             let equalsOffset = charOffset + line.distance(from: line.startIndex, to: assignIdx)
             let rightOffset = equalsOffset + 1
 
-            // Color the '=' operator
-            textStorage.addAttribute(
-                .foregroundColor,
-                value: theme.operatorColor,
-                range: NSRange(location: equalsOffset, length: 1)
-            )
+            // Color '='
+            textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: NSRange(location: equalsOffset, length: 1))
 
-            // Tokenize and color the left side (the variable name)
+            // Left side: declaration
             let varName = leftSide.trimmingCharacters(in: .whitespaces)
             if classificationEngine.isValidIdentifier(varName) {
                 knownVariables.insert(varName)
-
                 if let leftTokens = try? classificationEngine.tokenize(leftSide) {
                     for locatedToken in leftTokens {
                         let tokenNSRange = nsRange(from: locatedToken.range, in: leftSide, charOffset: leftOffset)
                         if case .ident = locatedToken.token {
                             textStorage.addAttribute(.foregroundColor, value: theme.variableDeclaration, range: tokenNSRange)
+                        } else if case .op = locatedToken.token {
+                            textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: tokenNSRange)
                         }
                     }
                 }
             }
 
-            // Tokenize and color the right side (the expression)
+            // Right side: expression tokens
             if let rightTokens = try? classificationEngine.tokenize(rightSide) {
                 colorTokens(
                     rightTokens,
@@ -350,7 +354,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 )
             }
         } else {
-            // No assignment — tokenize the whole line (no '=' present, so tokenizer succeeds)
+            // No '=' present
             if let tokens = try? classificationEngine.tokenize(line) {
                 colorTokens(
                     tokens,
@@ -374,8 +378,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         classificationEngine: CalculatorEngine,
         textStorage: NSTextStorage
     ) {
-        // Tokenize just the part before the opening brace — the tokenizer
-        // doesn't recognize '{'.
+        // Tokenize only up to '{'
         let beforeBrace = String(line.prefix(while: { $0 != "{" }))
         guard let tokens = try? classificationEngine.tokenize(beforeBrace) else { return }
 
@@ -383,8 +386,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         let paramNames = Set(funcDef?.parameters ?? [])
 
         for locatedToken in tokens {
-            let tokenNSRange = nsRange(from: locatedToken.range, in: line, charOffset: charOffset)
-
+            let tokenNSRange = nsRange(from: locatedToken.range, in: beforeBrace, charOffset: charOffset)
             switch locatedToken.token {
             case .ident(let name):
                 if name == funcName {
@@ -392,12 +394,10 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 } else if paramNames.contains(name) {
                     textStorage.addAttribute(.foregroundColor, value: theme.localParamDeclaration, range: tokenNSRange)
                 }
-
             case .op:
                 textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: tokenNSRange)
-
             default:
-                break // plainText — already set by the line reset
+                break
             }
         }
     }
@@ -414,20 +414,18 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     ) {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-        // Build local scope from the function's parameters and prior body lines
+        // Build local scope
         let funcDef = classificationEngine.functions[funcName]
         let paramNames = Set(funcDef?.parameters ?? [])
         var localVars = Set<String>()
 
-        // Scan the full function body up to (but not including) this line
-        // to find previously assigned local variables.
+        // Collect prior local var declarations (best-effort, given only body strings)
         if let funcDef = funcDef {
             for bodyLine in funcDef.body {
                 let bodyTrimmed = bodyLine.trimmingCharacters(in: .whitespaces)
                 if bodyTrimmed == trimmed { break }
                 if let assignIdx = classificationEngine.findTopLevelAssignment(in: bodyTrimmed) {
-                    let varName = String(bodyTrimmed[bodyTrimmed.startIndex..<assignIdx])
-                        .trimmingCharacters(in: .whitespaces)
+                    let varName = String(bodyTrimmed[bodyTrimmed.startIndex..<assignIdx]).trimmingCharacters(in: .whitespaces)
                     if classificationEngine.isValidIdentifier(varName) && !paramNames.contains(varName) {
                         localVars.insert(varName)
                     }
@@ -435,36 +433,24 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             }
         }
 
-        // Determine what to tokenize — strip "return" prefix if present
-        var lineToProcess = line
+        // Strip "return" for tokenization (no hinting; return stays plainText)
+        var processString = line
         var processOffset = charOffset
-
-        if trimmed.hasPrefix("return") {
-            if let returnRange = line.range(of: "return") {
-                // "return" stays plainText. Process everything after it.
-                lineToProcess = String(line[returnRange.upperBound...])
-                processOffset = charOffset + line.distance(from: line.startIndex, to: returnRange.upperBound)
-            }
+        if trimmed.hasPrefix("return"), let returnRange = line.range(of: "return") {
+            processString = String(line[returnRange.upperBound...])
+            processOffset = charOffset + line.distance(from: line.startIndex, to: returnRange.upperBound)
         }
 
-        let trimmedToProcess = lineToProcess.trimmingCharacters(in: .whitespaces)
-
-        // Check for assignment within the (possibly return-stripped) line
-        if let assignIdx = classificationEngine.findTopLevelAssignment(in: lineToProcess) {
-            let leftSide = String(lineToProcess[lineToProcess.startIndex..<assignIdx])
-            let rightSide = String(lineToProcess[lineToProcess.index(after: assignIdx)...])
+        // Assignment split for body lines too
+        if let assignIdx = classificationEngine.findTopLevelAssignment(in: processString) {
+            let leftSide = String(processString[processString.startIndex..<assignIdx])
+            let rightSide = String(processString[processString.index(after: assignIdx)...])
             let leftOffset = processOffset
-            let equalsOffset = processOffset + lineToProcess.distance(from: lineToProcess.startIndex, to: assignIdx)
+            let equalsOffset = processOffset + processString.distance(from: processString.startIndex, to: assignIdx)
             let rightOffset = equalsOffset + 1
 
-            // Color the '=' operator
-            textStorage.addAttribute(
-                .foregroundColor,
-                value: theme.operatorColor,
-                range: NSRange(location: equalsOffset, length: 1)
-            )
+            textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: NSRange(location: equalsOffset, length: 1))
 
-            // Determine the variable name and color it
             let varName = leftSide.trimmingCharacters(in: .whitespaces)
             if classificationEngine.isValidIdentifier(varName) {
                 localVars.insert(varName)
@@ -478,12 +464,13 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                             } else {
                                 textStorage.addAttribute(.foregroundColor, value: theme.localVarDeclaration, range: tokenNSRange)
                             }
+                        } else if case .op = locatedToken.token {
+                            textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: tokenNSRange)
                         }
                     }
                 }
             }
 
-            // Tokenize and color the right side
             let localScope = LocalScope(paramNames: paramNames, localVarNames: localVars)
             if let rightTokens = try? classificationEngine.tokenize(rightSide) {
                 colorTokens(
@@ -497,12 +484,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 )
             }
         } else {
-            // No assignment — tokenize the processed line
             let localScope = LocalScope(paramNames: paramNames, localVarNames: localVars)
-            if let tokens = try? classificationEngine.tokenize(lineToProcess) {
+            if let tokens = try? classificationEngine.tokenize(processString) {
                 colorTokens(
                     tokens,
-                    in: lineToProcess,
+                    in: processString,
                     charOffset: processOffset,
                     localScope: localScope,
                     knownVariables: knownVariables,
@@ -515,8 +501,6 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Shared Token Coloring
 
-    /// Colors an array of tokens within a substring, applying the appropriate
-    /// foreground color for each token based on context.
     private func colorTokens(
         _ tokens: [LocatedToken],
         in sourceString: String,
@@ -557,10 +541,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     ) -> NSColor {
         switch locatedToken.token {
         case .number:
+            // You asked that numbers remain default
             return theme.plainText
 
         case .ident(let name):
-            // Check if followed by '(' — function call
+            // Function call?
             let nextIndex = index + 1
             if nextIndex < allTokens.count, case .lparen = allTokens[nextIndex].token {
                 let isKnown = CalculatorEngine.builtInFunctions.contains(name)
@@ -568,21 +553,19 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 return isKnown ? theme.functionCall : theme.invalidCall
             }
 
-            // Safety check for "return" keyword
             if name == "return" {
                 return theme.plainText
             }
 
-            // Variable/identifier lookup — local scope first
             if let scope = localScope {
-                if scope.paramNames.contains(name)    { return theme.localParamUse }
-                if scope.localVarNames.contains(name)  { return theme.localVarUse }
+                if scope.paramNames.contains(name) { return theme.localParamUse }
+                if scope.localVarNames.contains(name) { return theme.localVarUse }
             }
 
-            // Global scope
-            if knownVariables.contains(name) { return theme.variableUse }
+            if knownVariables.contains(name) {
+                return theme.variableUse
+            }
 
-            // Unknown identifier — plain text
             return theme.plainText
 
         case .op:
@@ -622,7 +605,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
     @Binding var text: String
     let font: NSFont
     @Binding var lineHeights: [CGFloat]
-    var syntaxHighlighter: SyntaxHighlighter
+    let syntaxHighlighter: SyntaxHighlighter
     var onSetup: (GrowingTextView) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -639,39 +622,79 @@ struct ExpandingTextEditor: NSViewRepresentable {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
+        textView.allowsUndo = true
+        textView.usesFindBar = true
+
         textView.delegate = context.coordinator
         textView.layoutManager?.delegate = context.coordinator
 
         // Attach the syntax highlighter to the text storage
         textView.textStorage?.delegate = syntaxHighlighter
+        syntaxHighlighter.textView = textView
 
         context.coordinator.textView = textView
         DispatchQueue.main.async { onSetup(textView) }
+
+        // Initial highlight (empty doc -> harmless)
+        DispatchQueue.main.async {
+            if let ts = textView.textStorage {
+                syntaxHighlighter.forceFullHighlight(on: ts)
+            }
+        }
+
         return textView
     }
 
     func updateNSView(_ nsView: GrowingTextView, context: Context) {
-        // Only replace the string if it actually differs — avoids stripping attributes.
-        if nsView.string != text {
-            nsView.string = text
-            // String was replaced externally — re-highlight after the update settles.
-            DispatchQueue.main.async {
-                self.syntaxHighlighter.forceFullHighlight(on: nsView.textStorage!)
-            }
-        }
+        // IMPORTANT: Do not continuously push `text` into the NSTextView.
+        // Doing so breaks native undo/redo. The NSTextView is the source of truth
+        // during normal editing. We will update SwiftUI state from textDidChange.
 
-        // Only set font if it actually changed — setting font unconditionally
-        // resets all text attributes including foreground colors.
+        // Keep font in sync (guarded)
         if nsView.font != font {
             nsView.font = font
             DispatchQueue.main.async {
-                self.syntaxHighlighter.forceFullHighlight(on: nsView.textStorage!)
+                if let ts = nsView.textStorage {
+                    self.syntaxHighlighter.forceFullHighlight(on: ts)
+                }
             }
         }
 
         nsView.invalidateIntrinsicContentSize()
         DispatchQueue.main.async {
             context.coordinator.updateLineHeights(for: nsView)
+        }
+    }
+
+    // MARK: Programmatic text setting (for future document load / clear)
+
+    /// Replace the editor contents programmatically with correct undo behavior.
+    ///
+    /// - registerUndo: If false (document load), this clears the undo stack and does not create an undo step.
+    ///                 If true (clear action), the replacement becomes undoable.
+    static func setEditorText(_ textView: GrowingTextView, _ newText: String, registerUndo: Bool, syntaxHighlighter: SyntaxHighlighter) {
+        let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+
+        if registerUndo {
+            guard textView.shouldChangeText(in: fullRange, replacementString: newText) else { return }
+            textView.textStorage?.replaceCharacters(in: fullRange, with: newText)
+            textView.didChangeText()
+        } else {
+            // Not undoable (load): disable undo registration and clear undo stack
+            if let um = textView.undoManager {
+                um.disableUndoRegistration()
+                defer { um.enableUndoRegistration() }
+                um.removeAllActions()
+            }
+            textView.textStorage?.replaceCharacters(in: fullRange, with: newText)
+            textView.didChangeText()
+        }
+
+        // Re-highlight after programmatic change
+        DispatchQueue.main.async {
+            if let ts = textView.textStorage {
+                syntaxHighlighter.forceFullHighlight(on: ts)
+            }
         }
     }
 
@@ -683,6 +706,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? GrowingTextView else { return }
+            // Update SwiftUI mirror state
             parent.text = tv.string
             tv.invalidateIntrinsicContentSize()
             updateLineHeights(for: tv)
@@ -769,14 +793,18 @@ struct CalculatorView: View {
 
                     // ── Left: expanding text editor ──────────────────────
                     VStack(spacing: 0) {
-                        ExpandingTextEditor(text: $inputText,
-                                            font: editorFont,
-                                            lineHeights: $lineHeights,
-                                            syntaxHighlighter: highlighter,
-                                            onSetup: { textViewRef = $0 })
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity)
+                        ExpandingTextEditor(
+                            text: $inputText,
+                            font: editorFont,
+                            lineHeights: $lineHeights,
+                            syntaxHighlighter: highlighter,
+                            onSetup: { textViewRef = $0 }
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
 
+                        // Tappable fill: clicking below the last line focuses
+                        // the editor and places the cursor at the end.
                         Color.clear
                             .frame(maxHeight: .infinity)
                             .contentShape(Rectangle())
@@ -800,11 +828,6 @@ struct CalculatorView: View {
                                 .foregroundStyle(.green.opacity(1))
                                 .padding(.horizontal, 8)
                                 .frame(height: height, alignment: .bottom)
-                                .onTapGesture {
-                                    let pasteboard = NSPasteboard.general // Access the shared system pasteboard
-                                    pasteboard.clearContents()            // Clear the previous contents
-                                    pasteboard.setString(line, forType: .string) // Set the new string for the string type
-                                }
                         }
                         Spacer()
                     }
