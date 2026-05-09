@@ -1,5 +1,10 @@
 import Foundation
 
+/// Errors thrown during tokenization, parsing, or evaluation.
+///
+/// All errors are currently swallowed by `evaluate(lines:)`, which returns an
+/// empty string for invalid lines. These descriptions are useful for debugging
+/// and may surface in a future error-reporting UI.
 enum CalcError: Error, LocalizedError {
     case unexpectedToken(String)
     case unexpectedEndOfExpression

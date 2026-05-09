@@ -2,6 +2,12 @@ import SwiftUI
 import AppKit
 
 // MARK: - Growing NSTextView subclass
+
+/// An `NSTextView` subclass that reports its height based on laid-out text.
+///
+/// By overriding `intrinsicContentSize`, the view pushes its container height
+/// in SwiftUI rather than scrolling internally. This allows the text view to live
+/// inside a shared `ScrollView` while still growing vertically with content.
 class GrowingTextView: NSTextView {
     override var intrinsicContentSize: NSSize {
         guard let container = textContainer,
@@ -17,6 +23,15 @@ class GrowingTextView: NSTextView {
 }
 
 // MARK: - Non-scrolling NSTextView so we can use a shared ScrollView
+
+/// A SwiftUI bridge to a custom `NSTextView` that grows with its content.
+///
+/// `ExpandingTextEditor` wraps `GrowingTextView` so it can participate in a
+/// shared `ScrollView` alongside the answer column. It reports per-line heights
+/// back to SwiftUI to keep the two panes synchronized while scrolling.
+///
+/// The underlying `NSTextView` is the source of truth for text during editing;
+/// `text` is updated reactively via `textDidChange` to avoid breaking undo/redo.
 struct ExpandingTextEditor: NSViewRepresentable {
     @Binding var text: String
     let font: NSFont
@@ -51,7 +66,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         context.coordinator.textView = textView
         DispatchQueue.main.async { onSetup(textView) }
 
-        // Initial highlight (empty doc -> harmless)
+        // Initial highlight (empty doc is harmless)
         DispatchQueue.main.async {
             if let ts = textView.textStorage {
                 syntaxHighlighter.forceFullHighlight(on: ts)
@@ -81,6 +96,8 @@ struct ExpandingTextEditor: NSViewRepresentable {
             context.coordinator.updateLineHeights(for: nsView)
         }
     }
+
+    // MARK: Programmatic text setting (for future document load / clear)
 
     // MARK: Programmatic text setting (for future document load / clear)
 
@@ -152,6 +169,12 @@ struct ExpandingTextEditor: NSViewRepresentable {
             }
         }
 
+        /// Measures the rendered height of every paragraph in the text view.
+        ///
+        /// Paragraphs correspond to logical lines (delimited by `\n`). The measured
+        /// heights are published to `parent.lineHeights` so the answer column can
+        /// align its rows with the editor. A fallback height is used for empty or
+        /// trailing paragraphs to ensure the answer column never collapses.
         func updateLineHeights(for textView: GrowingTextView) {
             guard let layoutManager = textView.layoutManager,
                   let textContainer = textView.textContainer else { return }

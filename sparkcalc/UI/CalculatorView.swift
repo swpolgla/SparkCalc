@@ -2,6 +2,13 @@ import SwiftUI
 import AppKit
 
 // MARK: - Main View
+
+/// The root calculator view.
+///
+/// Displays a split-pane layout: an editable input area on the left and
+/// live-evaluated answers on the right. Both panes scroll together line-by-line.
+/// The engine and highlighter are instantiated once per view lifetime and shared
+/// across the UI hierarchy.
 struct CalculatorView: View {
     @State private var inputText: String = ""
     @State private var lineHeights: [CGFloat] = [17]
@@ -10,7 +17,8 @@ struct CalculatorView: View {
     private let editorFont = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
     private let answerColumnWidth: CGFloat = 120
 
-    // Shared engine and highlighter — created once
+    // Shared engine and highlighter — created once per view lifetime.
+    // Stored as `let` because they are reference types that outlive the view body.
     private let engine: CalculatorEngine
     private let highlighter: SyntaxHighlighter
 

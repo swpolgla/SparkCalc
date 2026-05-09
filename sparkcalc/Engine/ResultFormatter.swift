@@ -2,10 +2,12 @@ import Foundation
 
 // MARK: - Public Entry Point
 
-/// Evaluates an array of expression lines and returns a result for each.
-/// Every input line — including function definition lines and blank lines — has
-/// a corresponding entry in the output. Function definition lines and blank/
-/// invalid lines return "".
+/// Evaluates an array of expression lines and returns a formatted result for each.
+///
+/// Every input line — including function definition lines and blank lines — has a
+/// corresponding entry in the output. Function definition lines and blank/invalid
+/// lines return an empty string. This is a convenience wrapper that creates a fresh
+/// `CalculatorEngine` for one-shot evaluation.
 public func EvaluateLines(_ lines: [String]) -> [String] {
     let engine = CalculatorEngine()
     return engine.evaluate(lines: lines)
@@ -13,6 +15,12 @@ public func EvaluateLines(_ lines: [String]) -> [String] {
 
 // MARK: - Number Formatting
 
+/// Formats a `Double` result for display in the answer column.
+///
+/// - Integers within `1e15` are shown without a decimal point.
+/// - Very large or very small numbers use `%.15g` for compact scientific notation.
+/// - Trailing zeros after a decimal point are stripped.
+/// - Special values (`NaN`, `±∞`) are rendered as human-readable symbols.
 func formatResult(_ value: Double) -> String {
     if value.isNaN      { return "NaN" }
     if value.isInfinite { return value > 0 ? "∞" : "-∞" }

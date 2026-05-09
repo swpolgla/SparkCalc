@@ -1,7 +1,14 @@
 import AppKit
 
-// MARK: - Syntax Highlighter
-
+/// Real-time syntax highlighter for the calculator input pane.
+///
+/// `SyntaxHighlighter` observes the `NSTextStorage` of the input editor and
+/// re-colors text after every edit. It uses an incremental optimization: by
+/// comparing the current document state against a cached `HighlightState`, it
+/// limits re-highlighting to the suffix of lines that may have changed.
+///
+/// Coloring rules are driven by a fresh `CalculatorEngine` pass that builds
+/// line classifications and variable scoping information.
 class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     var theme = SyntaxTheme()
@@ -47,6 +54,16 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Main Highlighting Entry Point
 
+    /// Re-colors the entire text storage, using incremental logic where possible.
+    ///
+    /// This method runs a two-pass analysis:
+    /// 1. **Classification pass** — `collectFunctions` identifies function blocks.
+    /// 2. **Evaluation pass** — `evaluate` populates global variables line-by-line.
+    ///
+    /// It then compares the resulting state with `previousState`. If line count and
+    /// function names are unchanged, it finds the first dirty line and reuses the
+    /// cached variable set up to that point. Re-highlighting stops early if the
+    /// variable state stabilizes (no new assignments) before the end of the document.
     private func performHighlighting(on textStorage: NSTextStorage) {
         guard !isHighlighting else { return }
         isHighlighting = true
@@ -191,6 +208,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Line Classification Builder
 
+    /// Walks the sheet line-by-line and tags each as a function header, body, close,
+    /// or evaluable expression.
+    ///
+    /// Function blocks are identified by matching a header with `tryParseFunctionHeader`,
+    /// then consuming subsequent lines until a closing `}` is found.
     private func buildLineClassifications(lines: [String], engine: CalculatorEngine) -> [LineKind] {
         var classifications: [LineKind] = []
         var i = 0
@@ -368,6 +390,12 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Function Body Highlighting
 
+    /// Highlights a single line inside a function body, respecting local scope.
+    ///
+    /// Local scope is built by scanning prior lines in the same function body for
+    /// assignments. This is a best-effort approach: it only sees lines that appear
+    /// earlier in the body array and does not account for conditional or loop scopes
+    /// (the language does not currently support control flow).
     private func highlightFunctionBody(
         line: String,
         funcName: String,
@@ -378,7 +406,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     ) {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-        // Build local scope
+        // Resolve function definition and extract parameter names.
         let funcDef = classificationEngine.functions[funcName]
         let paramNames = Set(funcDef?.parameters ?? [])
         var localVars = Set<String>()
@@ -490,6 +518,14 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Token Coloring Logic
 
+    /// Scope container for local variables inside a function body.
+    ///
+    /// Used to resolve identifier colors with the following precedence:
+    /// 1. Function parameters (`paramNames`)
+    /// 2. Local variables declared earlier in the body (`localVarNames`)
+    /// 3. Global variables known at this point in the sheet
+    /// 4. Built-in constants
+    /// 5. Plain text (unknown identifier)
     private struct LocalScope {
         let paramNames: Set<String>
         let localVarNames: Set<String>
@@ -505,7 +541,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     ) -> NSColor {
         switch locatedToken.token {
         case .number:
-            // You asked that numbers remain default
+            // Numbers intentionally use the default text color.
             return theme.plainText
 
         case .ident(let name):

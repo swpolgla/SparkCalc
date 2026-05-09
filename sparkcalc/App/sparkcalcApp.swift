@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Application entry point.
+/// Creates a single resizable window containing the main calculator view.
 @main
 struct sparkcalcApp: App {
     var body: some Scene {

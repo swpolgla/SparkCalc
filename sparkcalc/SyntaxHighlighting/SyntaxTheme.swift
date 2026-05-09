@@ -2,8 +2,10 @@ import AppKit
 
 // MARK: - Syntax Theme
 
-/// Central location for all highlight colors. Tweak any of these to change
-/// the appearance of syntax highlighting throughout the app.
+/// Central location for all highlight colors.
+///
+/// Each property maps a syntactic category to an `NSColor`. Changing a value
+/// here immediately affects all subsequent highlighting without restarting the app.
 struct SyntaxTheme {
     var number: NSColor              = .textColor           // numeric literals
     var variableDeclaration: NSColor = .systemBlue          // left side of "=" in top-level assignments

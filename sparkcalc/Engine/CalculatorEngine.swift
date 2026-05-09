@@ -2,6 +2,12 @@ import Foundation
 
 // MARK: - Engine
 
+/// Core expression evaluator.
+///
+/// Parses and evaluates mathematical expressions using a recursive-descent parser.
+/// Supports variables, user-defined multi-line functions, and a library of built-ins.
+/// The engine evaluates line-by-line top-to-bottom, maintaining mutable state for
+/// variables across the sheet.
 class CalculatorEngine {
 
     static let builtInFunctions: Set<String> = [
@@ -19,6 +25,7 @@ class CalculatorEngine {
     ]
 
     var variables: [String: Double] = [
+        // Mathematical constants
         "pi":      Double.pi,
         "π":       Double.pi,
         "e":       M_E,
@@ -32,20 +39,30 @@ class CalculatorEngine {
         "log10e":  log10(M_E),
         "tau":     2.0 * Double.pi,
         "τ":       2.0 * Double.pi,
+        // Special floating-point values
         "inf":     Double.infinity,
         "infinity": Double.infinity,
         "nan":     Double.nan,
-        "c":       299_792_458.0,
-        "g":       9.80665,
-        "G":       6.67430e-11,
-        "h":       6.62607015e-34,
-        "k":       1.380649e-23,
-        "Na":      6.02214076e23,
-        "R":       8.314462618,
+        // Physical constants
+        "c":       299_792_458.0,       // speed of light (m/s)
+        "g":       9.80665,             // standard gravity (m/s²)
+        "G":       6.67430e-11,         // gravitational constant (m³·kg⁻¹·s⁻²)
+        "h":       6.62607015e-34,      // Planck constant (J·Hz⁻¹)
+        "k":       1.380649e-23,        // Boltzmann constant (J·K⁻¹)
+        "Na":      6.02214076e23,       // Avogadro's number (mol⁻¹)
+        "R":       8.314462618,         // ideal gas constant (J·mol⁻¹·K⁻¹)
     ]
 
     var functions: [String: FunctionDefinition] = [:]
 
+    /// Evaluates every line of the sheet and returns a formatted answer for each.
+    ///
+    /// This is a two-pass process:
+    /// 1. `collectFunctions` identifies and registers all user-defined functions.
+    /// 2. Each remaining line is evaluated top-to-bottom. Assignments mutate the
+    ///    `variables` dictionary so subsequent lines can reference them.
+    ///
+    /// Blank lines, function definitions, and lines that throw errors produce `""`.
     func evaluate(lines: [String]) -> [String] {
         let annotated = collectFunctions(from: lines)
         var results: [String] = []
@@ -74,6 +91,12 @@ class CalculatorEngine {
 
     // MARK: - Function Collection
 
+    /// Scans the sheet for function definitions and registers them in `self.functions`.
+    ///
+    /// Returns an annotated copy of the input where every line is tagged as either
+    /// part of a function block or an evaluable expression. This must run before
+    /// `evaluate(lines:)` so that user-defined functions are available during expression
+    /// parsing.
     func collectFunctions(from lines: [String]) -> [AnnotatedLine] {
         var annotated: [AnnotatedLine] = []
         var i = 0
@@ -111,6 +134,9 @@ class CalculatorEngine {
         return annotated
     }
 
+    /// Attempts to match a function declaration header such as `add(a, b) {`.
+    ///
+    /// Returns `nil` if the line does not conform to the expected pattern.
     func tryParseFunctionHeader(_ line: String) -> FunctionHeader? {
         let pattern = #"^([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\s*\{$"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -127,6 +153,11 @@ class CalculatorEngine {
 
     // MARK: - Line Evaluation
 
+    /// Evaluates a single sheet line.
+    ///
+    /// If the line contains a top-level assignment (`name = expression`), the result
+    /// is stored in `variables` under that name. Otherwise the line is treated as a
+    /// pure expression.
     private func evaluateLine(_ line: String) throws -> Double {
         if let assignRange = findTopLevelAssignment(in: line) {
             let varName = String(line[line.startIndex..<assignRange]).trimmingCharacters(in: .whitespaces)
@@ -140,6 +171,12 @@ class CalculatorEngine {
         return try evaluateExpression(line, localVars: [:])
     }
 
+    /// Locates the first `=` that is not inside parentheses and not part of a
+    /// comparison operator (`!=`, `<=`, `>=`, `==`).
+    ///
+    /// This heuristic distinguishes assignment from equality/comparison by tracking
+    /// parenthetical nesting depth and inspecting the characters immediately before
+    /// and after the `=`.
     func findTopLevelAssignment(in line: String) -> String.Index? {
         var depth = 0
         var prev: Character = "\0"
@@ -161,6 +198,9 @@ class CalculatorEngine {
         return nil
     }
 
+    /// Checks whether `s` is a legal identifier.
+    ///
+    /// Identifiers must match `^[a-zA-Z_][a-zA-Z0-9_]*$`.
     func isValidIdentifier(_ s: String) -> Bool {
         guard !s.isEmpty else { return false }
         return s.range(of: #"^[a-zA-Z_][a-zA-Z0-9_]*$"#, options: .regularExpression) != nil
@@ -168,6 +208,17 @@ class CalculatorEngine {
 
     // MARK: - Expression Evaluation (Recursive Descent Parser)
 
+    /// Parses and evaluates an expression string.
+    ///
+    /// The parser implements the following precedence (lowest to highest):
+    /// 1. Addition / subtraction (`+`, `-`)
+    /// 2. Multiplication / division / modulo (`*`, `/`, `%`)
+    /// 3. Unary plus / minus
+    /// 4. Exponentiation (`^`) — right-associative via `parseUnary` on the RHS
+    /// 5. Postfix percentage (`%`)
+    /// 6. Primary: numbers, identifiers (variables / functions), parenthesized expressions
+    ///
+    /// `localVars` shadows `variables`; identifiers are resolved in that order.
     func evaluateExpression(_ expr: String, localVars: [String: Double]) throws -> Double {
         let locatedTokens = try tokenize(expr)
         let tokens = locatedTokens.map { $0.token }
@@ -298,6 +349,11 @@ class CalculatorEngine {
 
     // MARK: - Function Invocation
 
+    /// Dispatches a function call to either a built-in implementation or a user-defined function.
+    ///
+    /// Built-ins are matched by hard-coded `case` labels. User-defined functions are looked up
+    /// in `self.functions`, their parameters are bound to the supplied arguments, and the body
+    /// is evaluated line-by-line.
     private func callFunction(name: String, args: [Double]) throws -> Double {
         switch name {
         case "sqrt":  guard args.count == 1 else { throw CalcError.wrongArgCount(name) }; return sqrt(args[0])
@@ -362,6 +418,15 @@ class CalculatorEngine {
 
     // MARK: - Tokenizer
 
+    /// Breaks an expression string into a sequence of `LocatedToken`s.
+    ///
+    /// Recognizes:
+    /// - Numbers: decimal literals with optional scientific notation (`1.2e-3`).
+    /// - Identifiers: letters, digits, and underscores (must start with a letter or `_`).
+    /// - Single-character operators: `+ - * / ^ %`.
+    /// - Grouping punctuation: `( ) ,`.
+    ///
+    /// Whitespace is skipped. Any other character produces `CalcError.unknownCharacter`.
     func tokenize(_ expr: String) throws -> [LocatedToken] {
         var tokens: [LocatedToken] = []
         var i = expr.startIndex
