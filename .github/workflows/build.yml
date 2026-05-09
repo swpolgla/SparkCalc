@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
@@ -43,14 +43,14 @@ jobs:
           zip -r "SparkCalc-v${VERSION}.zip" sparkcalc.app
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SparkCalc-${{ github.ref_name }}
           path: build/Build/Products/Release/SparkCalc-*.zip
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: build/Build/Products/Release/SparkCalc-*.zip
           generate_release_notes: true
