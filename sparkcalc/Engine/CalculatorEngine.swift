@@ -1,74 +1,4 @@
-//
-//  calc.swift
-//  sparkcalc
-//
-//  Created by Steven Polglase on 2/17/26.
-//
-
 import Foundation
-
-// MARK: - Public Entry Point
-
-/// Evaluates an array of expression lines and returns a result for each.
-/// Every input line — including function definition lines and blank lines — has
-/// a corresponding entry in the output. Function definition lines and blank/
-/// invalid lines return "".
-public func EvaluateLines(_ lines: [String]) -> [String] {
-    let engine = CalculatorEngine()
-    return engine.evaluate(lines: lines)
-}
-
-// MARK: - Number Formatting
-
-private func formatResult(_ value: Double) -> String {
-    if value.isNaN      { return "NaN" }
-    if value.isInfinite { return value > 0 ? "∞" : "-∞" }
-
-    if value == value.rounded() && abs(value) < 1e15 {
-        return String(format: "%.0f", value)
-    }
-
-    var str = String(format: "%.15g", value)
-    if str.contains(".") && !str.contains("e") && !str.contains("E") {
-        str = str.replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
-    }
-    return str
-}
-
-// MARK: - Token Types
-
-enum Token: CustomStringConvertible {
-    case number(Double)
-    case ident(String)
-    case op(String)
-    case lparen
-    case rparen
-    case comma
-
-    var description: String {
-        switch self {
-        case .number(let v): return "\(v)"
-        case .ident(let s): return s
-        case .op(let s):    return s
-        case .lparen:       return "("
-        case .rparen:       return ")"
-        case .comma:        return ","
-        }
-    }
-}
-
-struct LocatedToken {
-    let token: Token
-    let range: Range<String.Index>
-}
-
-// MARK: - Supporting Types
-
-struct FunctionDefinition {
-    let name: String
-    let parameters: [String]
-    let body: [String]
-}
 
 // MARK: - Engine
 
@@ -144,11 +74,6 @@ class CalculatorEngine {
 
     // MARK: - Function Collection
 
-    enum AnnotatedLine {
-        case functionLine
-        case evaluable(String)
-    }
-
     func collectFunctions(from lines: [String]) -> [AnnotatedLine] {
         var annotated: [AnnotatedLine] = []
         var i = 0
@@ -184,11 +109,6 @@ class CalculatorEngine {
         }
 
         return annotated
-    }
-
-    struct FunctionHeader {
-        let name: String
-        let parameters: [String]
     }
 
     func tryParseFunctionHeader(_ line: String) -> FunctionHeader? {
@@ -504,33 +424,5 @@ class CalculatorEngine {
             i = expr.index(after: i)
         }
         return tokens
-    }
-}
-
-// MARK: - Errors
-
-private enum CalcError: Error, LocalizedError {
-    case unexpectedToken(String)
-    case unexpectedEndOfExpression
-    case missingClosingParen
-    case invalidNumber(String)
-    case unknownCharacter(Character)
-    case undefinedVariable(String)
-    case undefinedFunction(String)
-    case wrongArgCount(String)
-    case missingReturn
-
-    var errorDescription: String? {
-        switch self {
-        case .unexpectedToken(let t):    return "Unexpected token: '\(t)'"
-        case .unexpectedEndOfExpression: return "Unexpected end of expression"
-        case .missingClosingParen:       return "Missing closing parenthesis"
-        case .invalidNumber(let n):      return "Invalid number: '\(n)'"
-        case .unknownCharacter(let c):   return "Unknown character: '\(c)'"
-        case .undefinedVariable(let v):  return "Undefined variable: '\(v)'"
-        case .undefinedFunction(let f):  return "Undefined function: '\(f)'"
-        case .wrongArgCount(let f):      return "Wrong argument count for function: '\(f)'"
-        case .missingReturn:            return "Function did not return a value"
-        }
     }
 }
