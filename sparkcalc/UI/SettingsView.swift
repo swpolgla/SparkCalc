@@ -8,6 +8,17 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Alternating Line Backgrounds", isOn: $settings.alternatingLineBackgroundsEnabled)
+
+                if settings.alternatingLineBackgroundsEnabled {
+                    HStack {
+                        Text("Tint Intensity")
+                        Slider(value: $settings.lineTintIntensity, in: 0...1)
+                    }
+                }
+            }
+
             Section("Syntax Colors") {
                 ColorSettingRow(title: "Numbers", color: settings.binding(for: \.number))
                 ColorSettingRow(title: "Variable Declaration", color: settings.binding(for: \.variableDeclaration))

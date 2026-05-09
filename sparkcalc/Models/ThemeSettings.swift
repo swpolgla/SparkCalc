@@ -8,6 +8,8 @@ import AppKit
 /// property notifies observers so highlighters can refresh.
 class ThemeSettings: ObservableObject {
     @Published var theme: SyntaxTheme = .default
+    @Published var alternatingLineBackgroundsEnabled: Bool = true
+    @Published var lineTintIntensity: Double = 0.75
 
     static let presets: [PresetColor] = [
         PresetColor(name: "Label", color: .labelColor),
@@ -49,6 +51,8 @@ class ThemeSettings: ObservableObject {
 
     func resetToDefaults() {
         theme = .default
+        alternatingLineBackgroundsEnabled = true
+        lineTintIntensity = 0.75
     }
 
     /// Creates a `Binding<NSColor>` for a specific property of the current theme.

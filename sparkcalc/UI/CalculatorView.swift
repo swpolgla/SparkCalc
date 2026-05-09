@@ -12,6 +12,7 @@ import AppKit
 struct CalculatorView: View {
     @ObservedObject var sheet: Sheet
     var isActive: Bool
+    @EnvironmentObject var themeSettings: ThemeSettings
 
     @State private var textViewRef: GrowingTextView?
 
@@ -20,6 +21,13 @@ struct CalculatorView: View {
 
     public var lines: [String] {
         sheet.inputText.components(separatedBy: "\n")
+    }
+
+    private func alternatingRowBackground(for index: Int) -> Color {
+        guard index % 2 == 1 else { return Color.clear }
+        let colors = NSColor.alternatingContentBackgroundColors
+        guard colors.count > 1 else { return Color.clear }
+        return Color(nsColor: colors[1])
     }
 
     var body: some View {
@@ -77,6 +85,35 @@ struct CalculatorView: View {
                     .frame(width: answerColumnWidth, alignment: .trailing)
                 }
                 .frame(maxWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
+                .background(alignment: .topLeading) {
+                    if themeSettings.alternatingLineBackgroundsEnabled {
+                        HStack(spacing: 0) {
+                            VStack(spacing: 0) {
+                                ForEach(sheet.lineHeights.indices, id: \.self) { index in
+                                    alternatingRowBackground(for: index)
+                                        .opacity(themeSettings.lineTintIntensity)
+                                        .frame(height: sheet.lineHeights[index])
+                                }
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity)
+
+                            Divider().hidden()
+
+                            VStack(spacing: 0) {
+                                ForEach(sheet.lineHeights.indices, id: \.self) { index in
+                                    alternatingRowBackground(for: index)
+                                        .opacity(themeSettings.lineTintIntensity)
+                                        .frame(height: sheet.lineHeights[index])
+                                }
+                                Spacer()
+                            }
+                            .frame(width: answerColumnWidth)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
+                    }
+                }
             }
         }
         .frame(minWidth: 300, minHeight: 300)
