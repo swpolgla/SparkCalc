@@ -2,20 +2,22 @@ import SwiftUI
 
 /// Root view hosting the calculator and the sheet tab bar.
 ///
-/// Displays the active sheet's input/output area above a row of tabs.
-/// Keyboard shortcuts for tab management are attached to invisible buttons
-/// that participate in the responder chain so they naturally scope to the
-/// key window.
+/// Displays all sheets in a ZStack, hiding inactive sheets so their text views
+/// (and undo history) remain alive across tab switches. Keyboard shortcuts
+/// for tab management are attached to invisible buttons that participate in
+/// the responder chain.
 struct ContentView: View {
     @StateObject private var store = SheetStore()
 
     var body: some View {
         VStack(spacing: 0) {
-            if let activeSheet = store.sheets.first(where: { $0.id == store.activeSheetId }) {
-                CalculatorView(sheet: activeSheet)
-                    .id(activeSheet.id) // Force full recreation on sheet switch
-            } else {
-                Color.clear
+            ZStack {
+                ForEach(store.sheets) { sheet in
+                    let isActive = store.activeSheetId == sheet.id
+                    CalculatorView(sheet: sheet, isActive: isActive)
+                        .opacity(isActive ? 1 : 0)
+                        .allowsHitTesting(isActive)
+                }
             }
 
             Divider()

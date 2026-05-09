@@ -9,6 +9,44 @@ import AppKit
 /// in SwiftUI rather than scrolling internally. This allows the text view to live
 /// inside a shared `ScrollView` while still growing vertically with content.
 class GrowingTextView: NSTextView {
+    /// Per-sheet undo manager. When set, overrides the default responder-chain
+    /// lookup so each sheet gets its own isolated undo/redo history.
+    weak var sheetUndoManager: UndoManager?
+
+    /// When `false` the view refuses first-responder status so hidden sheets
+    /// in the ZStack cannot steal focus from the active sheet.
+    var isActive: Bool = true
+
+    override var undoManager: UndoManager? {
+        sheetUndoManager ?? super.undoManager
+    }
+
+    override var acceptsFirstResponder: Bool {
+        isActive && super.acceptsFirstResponder
+    }
+
+    /// Intercept undo from the responder chain and route to the sheet's manager.
+    @objc func undo(_ sender: Any?) {
+        sheetUndoManager?.undo()
+    }
+
+    /// Intercept redo from the responder chain and route to the sheet's manager.
+    @objc func redo(_ sender: Any?) {
+        sheetUndoManager?.redo()
+    }
+
+    /// Ensure the Undo/Redo menu items are validated against the sheet's manager.
+    override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(undo(_:)):
+            return sheetUndoManager?.canUndo ?? false
+        case #selector(redo(_:)):
+            return sheetUndoManager?.canRedo ?? false
+        default:
+            return super.validateMenuItem(menuItem)
+        }
+    }
+
     override var intrinsicContentSize: NSSize {
         guard let container = textContainer,
               let manager = layoutManager else {
@@ -37,12 +75,16 @@ struct ExpandingTextEditor: NSViewRepresentable {
     let font: NSFont
     @Binding var lineHeights: [CGFloat]
     let syntaxHighlighter: SyntaxHighlighter
+    let undoManager: UndoManager
+    let isActive: Bool
     var onSetup: (GrowingTextView) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> GrowingTextView {
         let textView = GrowingTextView()
+        textView.sheetUndoManager = undoManager
+        textView.isActive = isActive
         textView.isRichText = false
         textView.font = font
         textView.backgroundColor = .clear
@@ -95,10 +137,21 @@ struct ExpandingTextEditor: NSViewRepresentable {
             }
         }
 
+        // Keep first-responder eligibility in sync with visibility
+        nsView.isActive = isActive
+
         nsView.invalidateIntrinsicContentSize()
         DispatchQueue.main.async {
             context.coordinator.updateLineHeights(for: nsView)
         }
+    }
+
+    static func dismantleNSView(_ nsView: GrowingTextView, coordinator: Coordinator) {
+        // Per Apple docs: "Cleans up the presented AppKit view (and coordinator)
+        // in anticipation of their removal." Remove all undo actions targeting
+        // this text view so dangling targets don't remain in the undo manager
+        // after the view is deallocated.
+        nsView.sheetUndoManager?.removeAllActions(withTarget: nsView)
     }
 
     // MARK: Programmatic text setting (for future document load / clear)

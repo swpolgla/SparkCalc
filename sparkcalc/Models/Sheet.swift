@@ -16,6 +16,11 @@ class Sheet: ObservableObject, Identifiable {
     let engine: CalculatorEngine
     let highlighter: SyntaxHighlighter
 
+    /// Per-sheet undo manager. Provides isolated undo/redo history so that
+    /// each sheet's text editor operates independently from the window's
+    /// shared undo stack.
+    let undoManager = UndoManager()
+
     init(id: UUID = UUID(), name: String) {
         self.id = id
         self.name = name

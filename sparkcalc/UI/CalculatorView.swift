@@ -11,6 +11,7 @@ import AppKit
 /// is fully isolated.
 struct CalculatorView: View {
     @ObservedObject var sheet: Sheet
+    var isActive: Bool
 
     @State private var textViewRef: GrowingTextView?
 
@@ -33,7 +34,14 @@ struct CalculatorView: View {
                             font: editorFont,
                             lineHeights: $sheet.lineHeights,
                             syntaxHighlighter: sheet.highlighter,
-                            onSetup: { textViewRef = $0 }
+                            undoManager: sheet.undoManager,
+                            isActive: isActive,
+                            onSetup: { tv in
+                                textViewRef = tv
+                                if isActive {
+                                    tv.window?.makeFirstResponder(tv)
+                                }
+                            }
                         )
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity)
@@ -72,9 +80,16 @@ struct CalculatorView: View {
             }
         }
         .frame(minWidth: 300, minHeight: 300)
+        .onChange(of: isActive) {
+            if isActive, let tv = textViewRef {
+                DispatchQueue.main.async {
+                    tv.window?.makeFirstResponder(tv)
+                }
+            }
+        }
     }
 }
 
 #Preview {
-    CalculatorView(sheet: Sheet(name: "Preview"))
+    CalculatorView(sheet: Sheet(name: "Preview"), isActive: true)
 }
