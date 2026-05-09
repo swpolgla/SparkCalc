@@ -704,12 +704,27 @@ struct ExpandingTextEditor: NSViewRepresentable {
 
         init(_ parent: ExpandingTextEditor) { self.parent = parent }
 
+        private var lastEditWasAtomic = false
+
+        func textView(_ textView: NSTextView,
+                      shouldChangeTextIn affectedCharRange: NSRange,
+                      replacementString: String?) -> Bool {
+            let isInsert = (replacementString?.count == 1 && affectedCharRange.length == 0)
+            let isDelete = (replacementString?.isEmpty == true && affectedCharRange.length == 1)
+            lastEditWasAtomic = isInsert || isDelete
+            return true
+        }
+
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? GrowingTextView else { return }
             // Update SwiftUI mirror state
             parent.text = tv.string
             tv.invalidateIntrinsicContentSize()
             updateLineHeights(for: tv)
+
+            if lastEditWasAtomic {
+                tv.breakUndoCoalescing()
+            }
         }
 
         func layoutManager(_ layoutManager: NSLayoutManager,
