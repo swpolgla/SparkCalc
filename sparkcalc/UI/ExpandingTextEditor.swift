@@ -132,6 +132,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // Keep font in sync (guarded)
         if nsView.font != font {
             nsView.font = font
+            nsView.invalidateIntrinsicContentSize()
             DispatchQueue.main.async {
                 if let ts = nsView.textStorage {
                     self.syntaxHighlighter.forceFullHighlight(on: ts)
@@ -141,11 +142,6 @@ struct ExpandingTextEditor: NSViewRepresentable {
 
         // Keep first-responder eligibility in sync with visibility
         nsView.isActive = isActive
-
-        nsView.invalidateIntrinsicContentSize()
-        DispatchQueue.main.async {
-            context.coordinator.updateLineHeights(for: nsView)
-        }
     }
 
     static func dismantleNSView(_ nsView: GrowingTextView, coordinator: Coordinator) {
@@ -271,7 +267,14 @@ struct ExpandingTextEditor: NSViewRepresentable {
                 heights.append(fallbackHeight)
             }
 
-            parent.lineHeights = heights
+            // Only publish when heights actually change to avoid a feedback loop:
+            // writing to the @Binding triggers Sheet.objectWillChange, which
+            // rebuilds CalculatorView, which calls updateNSView again.
+            let tolerancesMatch = heights.count == parent.lineHeights.count &&
+                zip(heights, parent.lineHeights).allSatisfy { abs($0 - $1) < 0.5 }
+            if !tolerancesMatch {
+                parent.lineHeights = heights
+            }
         }
     }
 }
