@@ -3,33 +3,22 @@ import AppKit
 
 // MARK: - Main View
 
-/// The root calculator view.
+/// The calculator view for a single sheet.
 ///
 /// Displays a split-pane layout: an editable input area on the left and
 /// live-evaluated answers on the right. Both panes scroll together line-by-line.
-/// The engine and highlighter are instantiated once per view lifetime and shared
-/// across the UI hierarchy.
+/// The engine and highlighter are taken from the provided `Sheet` so each sheet
+/// is fully isolated.
 struct CalculatorView: View {
-    @State private var inputText: String = ""
-    @State private var lineHeights: [CGFloat] = [17]
+    @ObservedObject var sheet: Sheet
+
     @State private var textViewRef: GrowingTextView?
 
     private let editorFont = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
     private let answerColumnWidth: CGFloat = 120
 
-    // Shared engine and highlighter — created once per view lifetime.
-    // Stored as `let` because they are reference types that outlive the view body.
-    private let engine: CalculatorEngine
-    private let highlighter: SyntaxHighlighter
-
-    init() {
-        let sharedEngine = CalculatorEngine()
-        self.engine = sharedEngine
-        self.highlighter = SyntaxHighlighter(engine: sharedEngine)
-    }
-
     public var lines: [String] {
-        inputText.components(separatedBy: "\n")
+        sheet.inputText.components(separatedBy: "\n")
     }
 
     var body: some View {
@@ -40,10 +29,10 @@ struct CalculatorView: View {
                     // ── Left: expanding text editor ──────────────────────
                     VStack(spacing: 0) {
                         ExpandingTextEditor(
-                            text: $inputText,
+                            text: $sheet.inputText,
                             font: editorFont,
-                            lineHeights: $lineHeights,
-                            syntaxHighlighter: highlighter,
+                            lineHeights: $sheet.lineHeights,
+                            syntaxHighlighter: sheet.highlighter,
                             onSetup: { textViewRef = $0 }
                         )
                         .fixedSize(horizontal: false, vertical: true)
@@ -66,9 +55,9 @@ struct CalculatorView: View {
 
                     // ── Right: answer column ─────────────────────────────
                     VStack(alignment: .trailing, spacing: 0) {
-                        let equation_answers: [String] = engine.evaluate(lines: lines)
+                        let equation_answers: [String] = sheet.engine.evaluate(lines: lines)
                         ForEach(equation_answers.enumerated(), id: \.offset) { index, line in
-                            let height = index < lineHeights.count ? lineHeights[index] : 17
+                            let height = index < sheet.lineHeights.count ? sheet.lineHeights[index] : 17
                             Text(line)
                                 .font(Font(editorFont))
                                 .foregroundStyle(.green.opacity(1))
@@ -87,5 +76,5 @@ struct CalculatorView: View {
 }
 
 #Preview {
-    CalculatorView()
+    CalculatorView(sheet: Sheet(name: "Preview"))
 }

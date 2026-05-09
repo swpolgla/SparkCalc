@@ -63,10 +63,14 @@ struct ExpandingTextEditor: NSViewRepresentable {
         textView.textStorage?.delegate = syntaxHighlighter
         syntaxHighlighter.textView = textView
 
+        // Seed the text view with the current bound text so it displays
+        // correctly when the view is recreated (e.g., on sheet switch).
+        textView.string = text
+
         context.coordinator.textView = textView
         DispatchQueue.main.async { onSetup(textView) }
 
-        // Initial highlight (empty doc is harmless)
+        // Initial highlight after seeding text
         DispatchQueue.main.async {
             if let ts = textView.textStorage {
                 syntaxHighlighter.forceFullHighlight(on: ts)
