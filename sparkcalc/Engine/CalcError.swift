@@ -5,7 +5,7 @@ import Foundation
 /// All errors are currently swallowed by `evaluate(lines:)`, which returns an
 /// empty string for invalid lines. These descriptions are useful for debugging
 /// and may surface in a future error-reporting UI.
-enum CalculatorError: Error, LocalizedError {
+enum CalculatorError: Error, LocalizedError, Equatable {
     case unexpectedToken(String)
     case unexpectedEndOfExpression
     case missingClosingParen
