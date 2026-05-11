@@ -1,15 +1,16 @@
 import SwiftUI
-import Combine
+import Observation
 import AppKit
 
 /// Observable settings object that owns the live syntax theme.
 ///
 /// Colors are held in memory only (no persistence). Changing the `theme`
 /// property notifies observers so highlighters can refresh.
-class ThemeSettings: ObservableObject {
-    @Published var theme: SyntaxTheme = .default
-    @Published var alternatingLineBackgroundsEnabled: Bool = true
-    @Published var lineTintIntensity: Double = 0.75
+@Observable
+class ThemeSettings {
+    var theme: SyntaxTheme = .default
+    var alternatingLineBackgroundsEnabled: Bool = true
+    var lineTintIntensity: Double = 0.75
 
     static let presets: [PresetColor] = [
         PresetColor(name: "Label", color: .labelColor),
@@ -37,15 +38,7 @@ class ThemeSettings: ObservableObject {
         let color: NSColor
 
         func matches(_ other: NSColor) -> Bool {
-            guard let s1 = self.color.usingColorSpace(.deviceRGB),
-                  let s2 = other.usingColorSpace(.deviceRGB) else {
-                return false
-            }
-            let tolerance: CGFloat = 0.001
-            return abs(s1.redComponent - s2.redComponent) < tolerance &&
-                   abs(s1.greenComponent - s2.greenComponent) < tolerance &&
-                   abs(s1.blueComponent - s2.blueComponent) < tolerance &&
-                   abs(s1.alphaComponent - s2.alphaComponent) < tolerance
+            color.isEqual(to: other)
         }
     }
 

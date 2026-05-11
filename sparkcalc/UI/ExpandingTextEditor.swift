@@ -78,7 +78,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
     let undoManager: UndoManager
     let isActive: Bool
     var onSetup: (GrowingTextView) -> Void
-    @EnvironmentObject private var themeSettings: ThemeSettings
+    @Environment(ThemeSettings.self) private var themeSettings
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -98,6 +98,11 @@ struct ExpandingTextEditor: NSViewRepresentable {
         )
         textView.allowsUndo = true
         textView.usesFindBar = true
+
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticLinkDetectionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
 
         textView.delegate = context.coordinator
         textView.layoutManager?.delegate = context.coordinator
@@ -151,8 +156,6 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // after the view is deallocated.
         nsView.sheetUndoManager?.removeAllActions(withTarget: nsView)
     }
-
-    // MARK: Programmatic text setting (for future document load / clear)
 
     // MARK: Programmatic text setting (for future document load / clear)
 
@@ -263,7 +266,8 @@ struct ExpandingTextEditor: NSViewRepresentable {
                 location = NSMaxRange(paraRange)
             } while location < totalLength
 
-            if totalLength == 0 || fullString.character(at: totalLength - 1) == unichar(("\n" as UnicodeScalar).value) {
+            let endsWithNewline = totalLength > 0 && fullString.character(at: totalLength - 1) == unichar(("\n" as UnicodeScalar).value)
+            if totalLength == 0 || endsWithNewline {
                 heights.append(fallbackHeight)
             }
 

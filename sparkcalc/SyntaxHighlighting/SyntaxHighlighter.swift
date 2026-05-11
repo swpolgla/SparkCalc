@@ -1,5 +1,5 @@
 import AppKit
-import Combine
+import Observation
 
 /// Real-time syntax highlighter for the calculator input pane.
 ///
@@ -22,7 +22,6 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     private var previousState: HighlightState?
     private var isHighlighting = false
-    private var cancellables = Set<AnyCancellable>()
 
     init(engine: CalculatorEngine) {
         self.engine = engine
@@ -32,16 +31,23 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     /// Binds the highlighter to a shared `ThemeSettings` so it re-highlights
     /// whenever the user changes a syntax color.
     func bind(to settings: ThemeSettings) {
-        cancellables.removeAll()
-        settings.$theme
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] newTheme in
-                self?.theme = newTheme
-                guard let textView = self?.textView,
+        observeTheme(in: settings)
+    }
+
+    private func observeTheme(in settings: ThemeSettings) {
+        withObservationTracking {
+            _ = settings.theme
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.theme = settings.theme
+                guard let textView = self.textView,
                       let textStorage = textView.textStorage else { return }
-                self?.forceFullHighlight(on: textStorage)
+                self.forceFullHighlight(on: textStorage)
+                // Re-register observation (withObservationTracking is one-shot)
+                self.observeTheme(in: settings)
             }
-            .store(in: &cancellables)
+        }
     }
 
     /// Forces a complete re-highlight, discarding any incremental state.
@@ -89,23 +95,18 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         let fullString = textStorage.string
         let lines = fullString.components(separatedBy: "\n")
 
-        // Build current classification and state using a fresh engine pass.
-        let classificationEngine = CalculatorEngine()
-
-        let _ = classificationEngine.collectFunctions(from: lines)
+        // Evaluate the shared engine to populate functions and variables.
+        self.engine.evaluate(lines: lines)
 
         // Build line classifications
-        let lineClassifications = buildLineClassifications(lines: lines, engine: classificationEngine)
-
-        // Evaluate to populate variables
-        _ = classificationEngine.evaluate(lines: lines)
+        let lineClassifications = buildLineClassifications(lines: lines, engine: self.engine)
 
         // Build known variables progression
-        var knownVariables: Set<String> = classificationEngine.builtInConstants
+        var knownVariables: Set<String> = CalculatorEngine.builtInConstants
         var knownVariablesAfterLine: [Set<String>] = []
 
         // Check if we can do an incremental update
-        let currentFunctionNames = Set(classificationEngine.functions.keys)
+        let currentFunctionNames = Set(self.engine.functions.keys)
         var canIncremental = false
         var dirtyStart = 0
 
@@ -182,7 +183,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 classification: classification,
                 charOffset: charOffset,
                 knownVariables: &knownVariables,
-                classificationEngine: classificationEngine,
+                classificationEngine: self.engine,
                 textStorage: textStorage
             )
 
@@ -595,8 +596,8 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     // MARK: - Range Helpers
 
     private func nsRange(from range: Range<String.Index>, in string: String, charOffset: Int) -> NSRange {
-        let start = string.distance(from: string.startIndex, to: range.lowerBound)
-        let length = string.distance(from: range.lowerBound, to: range.upperBound)
-        return NSRange(location: charOffset + start, length: length)
+        let start = range.lowerBound.utf16Offset(in: string)
+        let end = range.upperBound.utf16Offset(in: string)
+        return NSRange(location: charOffset + start, length: end - start)
     }
 }

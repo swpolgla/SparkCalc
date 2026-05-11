@@ -14,11 +14,12 @@ struct SyntaxTheme: Equatable {
     var localParamUse: NSColor       = .systemMint          // parameter uses inside function body
     var localVarDeclaration: NSColor = .systemTeal          // left side of "=" inside function body
     var localVarUse: NSColor         = .systemMint          // subsequent uses of local vars inside function body
-    var functionDecl: NSColor        = .systemPurple.shadow(withLevel: 0.2)!        // function name in declaration header
+    var functionDecl: NSColor        = .systemPurple.shadow(withLevel: 0.2) ?? .systemPurple        // function name in declaration header
     var functionCall: NSColor        = .systemPurple        // valid function calls
     var invalidCall: NSColor         = .systemRed           // unknown function calls
     var operatorColor: NSColor       = .secondaryLabelColor // +, -, *, /, ^, %, =
     var plainText: NSColor           = .textColor           // everything else
+    var answer: NSColor              = .systemGreen         // answer column results
 
     static let `default` = SyntaxTheme()
 }
@@ -36,19 +37,7 @@ extension SyntaxTheme {
         lhs.functionCall.isEqual(to: rhs.functionCall) &&
         lhs.invalidCall.isEqual(to: rhs.invalidCall) &&
         lhs.operatorColor.isEqual(to: rhs.operatorColor) &&
-        lhs.plainText.isEqual(to: rhs.plainText)
-    }
-}
-
-extension NSColor {
-    func isEqual(to other: NSColor, tolerance: CGFloat = 0.001) -> Bool {
-        guard let s1 = self.usingColorSpace(.deviceRGB),
-              let s2 = other.usingColorSpace(.deviceRGB) else {
-            return false
-        }
-        return abs(s1.redComponent - s2.redComponent) < tolerance &&
-               abs(s1.greenComponent - s2.greenComponent) < tolerance &&
-               abs(s1.blueComponent - s2.blueComponent) < tolerance &&
-               abs(s1.alphaComponent - s2.alphaComponent) < tolerance
+        lhs.plainText.isEqual(to: rhs.plainText) &&
+        lhs.answer.isEqual(to: rhs.answer)
     }
 }

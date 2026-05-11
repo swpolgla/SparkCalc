@@ -107,7 +107,22 @@ The parser handles operator precedence, unary operators, postfix percentages, an
 
 ## Roadmap
 
-- [ ] Customizable color themes
-- [ ] Multi-sheet support
+- [x] Customizable color themes
+- [x] Multi-sheet support
 - [ ] Export / import sheets
+
+## Build & Test
+
+Build the project in Xcode:
+
+```bash
+xcodebuild -project sparkcalc.xcodeproj -scheme sparkcalc -destination 'platform=macOS' build
+```
+
+Run tests:
+
+```bash
+xcodebuild -project sparkcalc.xcodeproj -scheme sparkcalc -destination 'platform=macOS' test
+```
+
 

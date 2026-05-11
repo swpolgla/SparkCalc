@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 
 /// Represents a single isolated calculator sheet.
 ///
@@ -7,11 +7,13 @@ import Combine
 /// full isolation of variables, functions, and evaluation state across sheets.
 /// For future persistence, only `id`, `name`, and `inputText` need to be serialized;
 /// the engine state can be rebuilt from the saved input.
-class Sheet: ObservableObject, Identifiable {
+@Observable
+class Sheet: Identifiable {
     let id: UUID
-    @Published var name: String
-    @Published var inputText: String = ""
-    @Published var lineHeights: [CGFloat] = [17]
+    var name: String
+    var inputText: String = ""
+    var lineHeights: [CGFloat] = [Sheet.defaultLineHeight]
+    var answers: [String] = []
 
     let engine: CalculatorEngine
     let highlighter: SyntaxHighlighter
@@ -28,4 +30,11 @@ class Sheet: ObservableObject, Identifiable {
         self.engine = freshEngine
         self.highlighter = SyntaxHighlighter(engine: freshEngine)
     }
+
+    /// Evaluates the current input text and publishes the results.
+    func updateAnswers() {
+        answers = engine.evaluate(lines: inputText.components(separatedBy: "\n"))
+    }
+
+    static let defaultLineHeight: CGFloat = 17
 }

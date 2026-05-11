@@ -4,9 +4,10 @@ import AppKit
 // MARK: - Settings View
 
 struct SettingsView: View {
-    @EnvironmentObject var settings: ThemeSettings
+    @Environment(ThemeSettings.self) var settings
 
     var body: some View {
+        @Bindable var settings = settings
         Form {
             Section {
                 Toggle("Alternating Line Backgrounds", isOn: $settings.alternatingLineBackgroundsEnabled)

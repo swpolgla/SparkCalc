@@ -10,16 +10,17 @@ import AppKit
 /// The engine and highlighter are taken from the provided `Sheet` so each sheet
 /// is fully isolated.
 struct CalculatorView: View {
-    @ObservedObject var sheet: Sheet
+    var sheet: Sheet
     var isActive: Bool
-    @EnvironmentObject var themeSettings: ThemeSettings
+    @Environment(ThemeSettings.self) var themeSettings
 
     @State private var textViewRef: GrowingTextView?
 
-    private let editorFont = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+    static let defaultFontSize: CGFloat = 14
+    private let editorFont = NSFont.monospacedSystemFont(ofSize: Self.defaultFontSize, weight: .regular)
     private let answerColumnWidth: CGFloat = 120
 
-    public var lines: [String] {
+    private var lines: [String] {
         sheet.inputText.components(separatedBy: "\n")
     }
 
@@ -31,6 +32,7 @@ struct CalculatorView: View {
     }
 
     var body: some View {
+        @Bindable var sheet = sheet
         GeometryReader { geo in
             ScrollView {
                 HStack(alignment: .top, spacing: 0) {
@@ -71,12 +73,12 @@ struct CalculatorView: View {
 
                     // ── Right: answer column ─────────────────────────────
                     VStack(alignment: .trailing, spacing: 0) {
-                        let equation_answers: [String] = sheet.engine.evaluate(lines: lines)
-                        ForEach(equation_answers.enumerated(), id: \.offset) { index, line in
-                            let height = index < sheet.lineHeights.count ? sheet.lineHeights[index] : 17
+                        let equationAnswers = sheet.answers
+                        ForEach(equationAnswers.enumerated(), id: \.offset) { index, line in
+                            let height = index < sheet.lineHeights.count ? sheet.lineHeights[index] : Sheet.defaultLineHeight
                             Text(line)
                                 .font(Font(editorFont))
-                                .foregroundStyle(.green.opacity(1))
+                                .foregroundStyle(Color(nsColor: themeSettings.theme.answer))
                                 .padding(.horizontal, 8)
                                 .frame(height: height, alignment: .bottom)
                         }
@@ -117,6 +119,12 @@ struct CalculatorView: View {
             }
         }
         .frame(minWidth: 300, minHeight: 300)
+        .onAppear {
+            sheet.updateAnswers()
+        }
+        .onChange(of: sheet.inputText) {
+            sheet.updateAnswers()
+        }
         .onChange(of: isActive) {
             if isActive, let tv = textViewRef {
                 DispatchQueue.main.async {
@@ -129,5 +137,5 @@ struct CalculatorView: View {
 
 #Preview {
     CalculatorView(sheet: Sheet(name: "Preview"), isActive: true)
-        .environmentObject(ThemeSettings())
+        .environment(ThemeSettings())
 }

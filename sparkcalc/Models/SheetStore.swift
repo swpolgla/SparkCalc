@@ -1,13 +1,14 @@
 import Foundation
-import Combine
+import Observation
 
 /// Manages the collection of calculator sheets.
 ///
 /// Maintains an ordered list of sheets, tracks the active sheet, and provides
 /// CRUD operations. Ensures at least one sheet always exists.
-class SheetStore: ObservableObject {
-    @Published var sheets: [Sheet] = []
-    @Published var activeSheetId: UUID?
+@Observable
+class SheetStore {
+    var sheets: [Sheet] = []
+    var activeSheetId: UUID?
 
     private var nextSheetNumber = 1
 
@@ -49,6 +50,22 @@ class SheetStore: ObservableObject {
     func activateSheet(id: UUID) {
         guard sheets.contains(where: { $0.id == id }) else { return }
         activeSheetId = id
+    }
+
+    func activatePreviousSheet() {
+        guard let activeSheetId,
+              let currentIndex = sheets.firstIndex(where: { $0.id == activeSheetId }),
+              sheets.count > 1 else { return }
+        let previousIndex = currentIndex == 0 ? sheets.count - 1 : currentIndex - 1
+        self.activeSheetId = sheets[previousIndex].id
+    }
+
+    func activateNextSheet() {
+        guard let activeSheetId,
+              let currentIndex = sheets.firstIndex(where: { $0.id == activeSheetId }),
+              sheets.count > 1 else { return }
+        let nextIndex = currentIndex == sheets.count - 1 ? 0 : currentIndex + 1
+        self.activeSheetId = sheets[nextIndex].id
     }
 
     func renameSheet(id: UUID, to newName: String) {

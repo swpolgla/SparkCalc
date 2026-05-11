@@ -5,7 +5,7 @@ import Foundation
 /// All errors are currently swallowed by `evaluate(lines:)`, which returns an
 /// empty string for invalid lines. These descriptions are useful for debugging
 /// and may surface in a future error-reporting UI.
-enum CalcError: Error, LocalizedError {
+enum CalculatorError: Error, LocalizedError {
     case unexpectedToken(String)
     case unexpectedEndOfExpression
     case missingClosingParen
@@ -15,6 +15,7 @@ enum CalcError: Error, LocalizedError {
     case undefinedFunction(String)
     case wrongArgCount(String)
     case missingReturn
+    case recursionLimitExceeded
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,7 @@ enum CalcError: Error, LocalizedError {
         case .undefinedFunction(let f):  return "Undefined function: '\(f)'"
         case .wrongArgCount(let f):      return "Wrong argument count for function: '\(f)'"
         case .missingReturn:            return "Function did not return a value"
+        case .recursionLimitExceeded:   return "Recursion limit exceeded"
         }
     }
 }

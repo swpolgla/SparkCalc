@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 /// and is highlighted when directly hovered. A "+" button to the right of the
 /// tabs creates a new sheet. Tabs support drag-to-reorder.
 struct TabBarView: View {
-    @ObservedObject var store: SheetStore
+    var store: SheetStore
 
     @State private var renamingSheetId: UUID?
     @State private var renameText: String = ""
