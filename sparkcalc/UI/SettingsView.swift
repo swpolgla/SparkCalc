@@ -21,18 +21,19 @@ struct SettingsView: View {
             }
 
             Section("Syntax Colors") {
-                ColorSettingRow(title: "Numbers", color: settings.binding(for: \.number))
-                ColorSettingRow(title: "Variable Declaration", color: settings.binding(for: \.variableDeclaration))
-                ColorSettingRow(title: "Variable Use", color: settings.binding(for: \.variableUse))
+                ColorSettingRow(title: "Answer", color: settings.binding(for: \.answer))
+                ColorSettingRow(title: "Function Call", color: settings.binding(for: \.functionCall))
+                ColorSettingRow(title: "Function Declaration", color: settings.binding(for: \.functionDecl))
+                ColorSettingRow(title: "Invalid Call", color: settings.binding(for: \.invalidCall))
                 ColorSettingRow(title: "Local Parameter Declaration", color: settings.binding(for: \.localParamDeclaration))
                 ColorSettingRow(title: "Local Parameter Use", color: settings.binding(for: \.localParamUse))
                 ColorSettingRow(title: "Local Variable Declaration", color: settings.binding(for: \.localVarDeclaration))
                 ColorSettingRow(title: "Local Variable Use", color: settings.binding(for: \.localVarUse))
-                ColorSettingRow(title: "Function Declaration", color: settings.binding(for: \.functionDecl))
-                ColorSettingRow(title: "Function Call", color: settings.binding(for: \.functionCall))
-                ColorSettingRow(title: "Invalid Call", color: settings.binding(for: \.invalidCall))
+                ColorSettingRow(title: "Numbers", color: settings.binding(for: \.number))
                 ColorSettingRow(title: "Operators", color: settings.binding(for: \.operatorColor))
                 ColorSettingRow(title: "Plain Text", color: settings.binding(for: \.plainText))
+                ColorSettingRow(title: "Variable Declaration", color: settings.binding(for: \.variableDeclaration))
+                ColorSettingRow(title: "Variable Use", color: settings.binding(for: \.variableUse))
             }
 
             Section {
