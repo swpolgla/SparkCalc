@@ -11,6 +11,11 @@ import UniformTypeIdentifiers
 /// left half of a tab shows an indicator at its leading edge; hovering over the
 /// right half shows an indicator at its trailing edge (or the next tab’s leading
 /// edge, which is physically the same location).
+///
+/// When tabs overflow the visible width, scroll chevron buttons (`<` / `>`)
+/// appear at the leading/trailing edges of the scroll area, allowing mouse and
+/// keyboard users to reveal hidden tabs. One click scrolls exactly one hidden
+/// tab into view.
 struct TabBarView: View {
     var store: SheetStore
 
@@ -20,36 +25,120 @@ struct TabBarView: View {
     @State private var hoveredCloseSheetId: UUID?
     @State private var isAddButtonHovered: Bool = false
     @State private var dropTargetIndex: Int?
+    @State private var tabFrames: [UUID: CGRect] = [:]
+    @State private var scrollContainerWidth: CGFloat = 0
     @FocusState private var renameFieldIsFocused: Bool
 
+    private var showLeadingChevron: Bool {
+        tabFrames.values.contains { $0.maxX <= 0 }
+    }
+
+    private var showTrailingChevron: Bool {
+        guard scrollContainerWidth > 0 else { return false }
+        return tabFrames.values.contains { $0.minX >= scrollContainerWidth }
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(Array(store.sheets.enumerated()), id: \.element.id) { index, sheet in
-                        tabView(for: sheet, at: index)
+        ScrollViewReader { proxy in
+            HStack(spacing: 0) {
+                if showLeadingChevron {
+                    scrollChevron(direction: .left) {
+                        scrollToPrevious(using: proxy)
                     }
                 }
-                .padding(.horizontal, 8)
-                .animation(.easeOut(duration: 0.1), value: dropTargetIndex)
-                .animation(.snappy, value: store.sheets.map(\.id))
-            }
 
-            Button(action: { store.addSheet() }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 24, height: 24)
-                    .background(isAddButtonHovered ? Color.accentColor.opacity(0.15) : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help("New sheet")
-            .padding(.trailing, 8)
-            .onHover { hovering in
-                isAddButtonHovered = hovering
-            }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(store.sheets.enumerated()), id: \.element.id) { index, sheet in
+                            tabView(for: sheet, at: index)
+                                .id(sheet.id)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .animation(.easeOut(duration: 0.1), value: dropTargetIndex)
+                    .animation(.snappy, value: store.sheets.map(\.id))
+                }
+                .coordinateSpace(name: "tabScrollView")
+                .onPreferenceChange(TabFramePreferenceKey.self) { frames in
+                    tabFrames = frames
+                }
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { scrollContainerWidth = geo.size.width }
+                            .onChange(of: geo.size.width) { _, newWidth in scrollContainerWidth = newWidth }
+                    }
+                )
 
-            Spacer(minLength: 0)
+                if showTrailingChevron {
+                    scrollChevron(direction: .right) {
+                        scrollToNext(using: proxy)
+                    }
+                }
+
+                Button(action: { store.addSheet() }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                        .background(isAddButtonHovered ? Color.accentColor.opacity(0.15) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("New sheet")
+                .padding(.trailing, 8)
+                .onHover { hovering in
+                    isAddButtonHovered = hovering
+                }
+
+                Spacer(minLength: 0)
+            }
+            .onChange(of: store.activeSheetId) { _, newValue in
+                if let newValue {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Scroll Chevron
+
+    @ViewBuilder
+    private func scrollChevron(direction: ChevronDirection, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 20, height: 32)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(direction == .left ? "Scroll tabs left" : "Scroll tabs right")
+    }
+
+    private enum ChevronDirection {
+        case left, right
+    }
+
+    private func scrollToPrevious(using proxy: ScrollViewProxy) {
+        guard let target = store.sheets.last(where: { tab in
+            guard let frame = tabFrames[tab.id] else { return false }
+            return frame.maxX <= 0
+        }) else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            proxy.scrollTo(target.id, anchor: .leading)
+        }
+    }
+
+    private func scrollToNext(using proxy: ScrollViewProxy) {
+        guard scrollContainerWidth > 0,
+              let target = store.sheets.first(where: { tab in
+            guard let frame = tabFrames[tab.id] else { return false }
+            return frame.minX >= scrollContainerWidth
+        }) else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            proxy.scrollTo(target.id, anchor: .trailing)
         }
     }
 
@@ -130,6 +219,15 @@ struct TabBarView: View {
                 indicatorLine
             }
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .preference(
+                        key: TabFramePreferenceKey.self,
+                        value: [sheet.id: geo.frame(in: .named("tabScrollView"))]
+                    )
+            }
+        )
         .onDrag {
             NSItemProvider(object: sheet.id.uuidString as NSString)
         } preview: {
@@ -166,6 +264,15 @@ struct TabBarView: View {
         .onAppear {
             renameFieldIsFocused = true
         }
+    }
+}
+
+// MARK: - Tab Frame Tracking
+
+private struct TabFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] { [:] }
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
