@@ -6,7 +6,11 @@ import UniformTypeIdentifiers
 /// Displays tabs left-aligned with an active-state indicator. Each tab can be
 /// double-clicked to rename. A close button (×) appears on any tab when hovered
 /// and is highlighted when directly hovered. A "+" button to the right of the
-/// tabs creates a new sheet. Tabs support drag-to-reorder.
+/// tabs creates a new sheet. Tabs support drag-to-reorder with live visual
+/// feedback: each tab is split into left/right drop halves. Hovering over the
+/// left half of a tab shows an indicator at its leading edge; hovering over the
+/// right half shows an indicator at its trailing edge (or the next tab’s leading
+/// edge, which is physically the same location).
 struct TabBarView: View {
     var store: SheetStore
 
@@ -15,21 +19,20 @@ struct TabBarView: View {
     @State private var hoveredSheetId: UUID?
     @State private var hoveredCloseSheetId: UUID?
     @State private var isAddButtonHovered: Bool = false
+    @State private var dropTargetIndex: Int?
     @FocusState private var renameFieldIsFocused: Bool
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                    ForEach(store.sheets) { sheet in
-                        tabView(for: sheet)
-                            .onDrag {
-                                NSItemProvider(object: TabBarItemProvider(sheetId: sheet.id))
-                            }
-                            .onDrop(of: [.text], delegate: TabDropDelegate(sheet: sheet, store: store))
+                    ForEach(Array(store.sheets.enumerated()), id: \.element.id) { index, sheet in
+                        tabView(for: sheet, at: index)
                     }
                 }
                 .padding(.horizontal, 8)
+                .animation(.easeOut(duration: 0.1), value: dropTargetIndex)
+                .animation(.snappy, value: store.sheets.map(\.id))
             }
 
             Button(action: { store.addSheet() }) {
@@ -53,50 +56,101 @@ struct TabBarView: View {
     // MARK: - Individual Tab
 
     @ViewBuilder
-    private func tabView(for sheet: Sheet) -> some View {
+    private func tabView(for sheet: Sheet, at index: Int) -> some View {
         let isActive = store.activeSheetId == sheet.id
         let isHovered = hoveredSheetId == sheet.id
+        let isLast = index == store.sheets.count - 1
 
-        HStack(spacing: 4) {
-            if renamingSheetId == sheet.id {
-                renameField(for: sheet)
-            } else {
-                Text(sheet.name)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
-                    .lineLimit(1)
-                    .onTapGesture {
-                        store.activateSheet(id: sheet.id)
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isActive ? Color.accentColor.opacity(0.15) : (isHovered ? Color.accentColor.opacity(0.05) : Color.clear))
+
+            HStack(spacing: 4) {
+                if renamingSheetId == sheet.id {
+                    renameField(for: sheet)
+                } else {
+                    Text(sheet.name)
+                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                        .lineLimit(1)
+                        .onTapGesture {
+                            store.activateSheet(id: sheet.id)
+                        }
+                        .onDoubleClick {
+                            renamingSheetId = sheet.id
+                            renameText = sheet.name
+                        }
+                }
+
+                if isActive || isHovered {
+                    Button(action: { store.removeSheet(id: sheet.id) }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .frame(width: 14, height: 14)
+                            .background(hoveredCloseSheetId == sheet.id ? Color(NSColor.secondaryLabelColor) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                     }
-                    .onDoubleClick {
-                        renamingSheetId = sheet.id
-                        renameText = sheet.name
+                    .buttonStyle(.plain)
+                    .opacity(hoveredCloseSheetId == sheet.id ? 1 : 0.5)
+                    .help("Close sheet")
+                    .onHover { hovering in
+                        hoveredCloseSheetId = hovering ? sheet.id : nil
                     }
+                }
             }
-
-            if isActive || isHovered {
-                Button(action: { store.removeSheet(id: sheet.id) }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .frame(width: 14, height: 14)
-                        .background(hoveredCloseSheetId == sheet.id ? Color(NSColor.secondaryLabelColor) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .opacity(hoveredCloseSheetId == sheet.id ? 1 : 0.5)
-                .help("Close sheet")
-                .onHover { hovering in
-                    hoveredCloseSheetId = hovering ? sheet.id : nil
-                }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .overlay(
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(Color.clear)
+                    .onDrop(of: [.text], delegate: TabDropDelegate(
+                        targetIndex: index,
+                        store: store,
+                        dropTargetIndex: $dropTargetIndex
+                    ))
+                Rectangle()
+                    .fill(Color.clear)
+                    .onDrop(of: [.text], delegate: TabDropDelegate(
+                        targetIndex: index + 1,
+                        store: store,
+                        dropTargetIndex: $dropTargetIndex
+                    ))
+            }
+        )
+        .overlay(alignment: .leading) {
+            if dropTargetIndex == index {
+                indicatorLine
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(isActive ? Color.accentColor.opacity(0.15) : (isHovered ? Color.accentColor.opacity(0.05) : Color.clear))
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .contentShape(Rectangle())
+        .overlay(alignment: .trailing) {
+            if dropTargetIndex == store.sheets.count && isLast {
+                indicatorLine
+            }
+        }
+        .onDrag {
+            NSItemProvider(object: sheet.id.uuidString as NSString)
+        } preview: {
+            Text(sheet.name)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.accentColor.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
         .onHover { hovering in
             hoveredSheetId = hovering ? sheet.id : nil
         }
+    }
+
+    private var indicatorLine: some View {
+        Rectangle()
+            .fill(Color.accentColor)
+            .frame(width: 2)
+            .clipShape(RoundedRectangle(cornerRadius: 1))
     }
 
     @ViewBuilder
@@ -117,34 +171,31 @@ struct TabBarView: View {
 
 // MARK: - Drag & Drop Support
 
-/// Simple item provider wrapper so we can carry a sheet ID during drag.
-private class TabBarItemProvider: NSObject, NSItemProviderWriting {
-    let sheetId: UUID
-
-    init(sheetId: UUID) {
-        self.sheetId = sheetId
-        super.init()
-    }
-
-    static var writableTypeIdentifiersForItemProvider: [String] {
-        [UTType.plainText.identifier]
-    }
-
-    func loadData(withTypeIdentifier typeIdentifier: String, forItemProviderCompletionHandler completionHandler: @escaping (Data?, Error?) -> Void) -> Progress? {
-        let data = sheetId.uuidString.data(using: .utf8)
-        completionHandler(data, nil)
-        return nil
-    }
-}
-
 private struct TabDropDelegate: DropDelegate {
-    let sheet: Sheet
+    let targetIndex: Int
     let store: SheetStore
+    @Binding var dropTargetIndex: Int?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.plainText.identifier])
+    }
+
+    func dropEntered(info: DropInfo) {
+        dropTargetIndex = targetIndex
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetIndex == targetIndex {
+            dropTargetIndex = nil
+        }
+    }
 
     func performDrop(info: DropInfo) -> Bool {
         guard let itemProvider = info.itemProviders(for: [.text]).first else { return false }
-
-        let targetSheetId = sheet.id
 
         itemProvider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
             guard let data = data as? Data,
@@ -152,9 +203,10 @@ private struct TabDropDelegate: DropDelegate {
                   let draggedId = UUID(uuidString: idString) else { return }
 
             DispatchQueue.main.async {
-                guard let fromIndex = store.sheets.firstIndex(where: { $0.id == draggedId }),
-                      let toIndex = store.sheets.firstIndex(where: { $0.id == targetSheetId }) else { return }
-                store.moveSheet(fromIndex: fromIndex, toIndex: toIndex)
+                withAnimation(.snappy) {
+                    store.moveSheet(id: draggedId, toBaseIndex: targetIndex)
+                }
+                dropTargetIndex = nil
             }
         }
         return true

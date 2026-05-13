@@ -73,13 +73,12 @@ class SheetStore {
         sheets[index].name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func moveSheet(fromIndex: Int, toIndex: Int) {
-        guard fromIndex != toIndex,
-              fromIndex >= 0, fromIndex < sheets.count,
-              toIndex >= 0, toIndex < sheets.count else { return }
+    func moveSheet(id: UUID, toBaseIndex: Int) {
+        guard let fromIndex = sheets.firstIndex(where: { $0.id == id }),
+              toBaseIndex >= 0, toBaseIndex <= sheets.count else { return }
         let sheet = sheets.remove(at: fromIndex)
-        let destination = toIndex > fromIndex ? toIndex - 1 : toIndex
-        sheets.insert(sheet, at: destination)
+        let target = min(toBaseIndex, sheets.count)
+        sheets.insert(sheet, at: target)
     }
 
     // MARK: - Helpers

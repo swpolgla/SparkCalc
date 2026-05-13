@@ -58,7 +58,7 @@ struct SheetStoreTests {
         store.addSheet()
         let firstId = store.sheets[0].id
         let secondId = store.sheets[1].id
-        store.moveSheet(fromIndex: 0, toIndex: 2)
+        store.moveSheet(id: firstId, toBaseIndex: 1)
         #expect(store.sheets[1].id == firstId)
         #expect(store.sheets[0].id == secondId)
     }
@@ -146,7 +146,8 @@ struct SheetStoreTests {
         let store = SheetStore()
         store.addSheet()
         let activeId = store.activeSheetId!
-        store.moveSheet(fromIndex: 0, toIndex: 1)
+        let firstId = store.sheets[0].id
+        store.moveSheet(id: firstId, toBaseIndex: 0)
         #expect(store.activeSheetId == activeId)
         #expect(store.sheets.contains(where: { $0.id == store.activeSheetId }))
     }
@@ -193,7 +194,8 @@ struct SheetStoreTests {
         let store = SheetStore()
         store.addSheet()
         let originalOrder = store.sheets.map { $0.id }
-        store.moveSheet(fromIndex: 0, toIndex: 0)
+        let firstId = store.sheets[0].id
+        store.moveSheet(id: firstId, toBaseIndex: 0)
         #expect(store.sheets.map { $0.id } == originalOrder)
     }
 
@@ -201,9 +203,10 @@ struct SheetStoreTests {
         let store = SheetStore()
         store.addSheet()
         let originalOrder = store.sheets.map { $0.id }
-        store.moveSheet(fromIndex: -1, toIndex: 1)
-        store.moveSheet(fromIndex: 0, toIndex: 10)
-        store.moveSheet(fromIndex: 5, toIndex: 0)
+        let firstId = store.sheets[0].id
+        store.moveSheet(id: UUID(), toBaseIndex: 0)
+        store.moveSheet(id: firstId, toBaseIndex: -1)
+        store.moveSheet(id: firstId, toBaseIndex: 10)
         #expect(store.sheets.map { $0.id } == originalOrder)
     }
 
@@ -212,7 +215,7 @@ struct SheetStoreTests {
         store.addSheet()
         store.addSheet()
         let lastId = store.sheets[2].id
-        store.moveSheet(fromIndex: 2, toIndex: 0)
+        store.moveSheet(id: lastId, toBaseIndex: 0)
         #expect(store.sheets[0].id == lastId)
     }
 
