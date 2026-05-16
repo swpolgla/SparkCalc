@@ -9,6 +9,7 @@ struct ThemeSettingsTests {
         #expect(settings.theme == .default)
         #expect(settings.alternatingLineBackgroundsEnabled == true)
         #expect(settings.lineTintIntensity == 0.75)
+        #expect(settings.defaultAnswerColumnFraction == 0.25)
     }
 
     @Test func resetToDefaultsRestoresMutatedValues() {
@@ -16,10 +17,12 @@ struct ThemeSettingsTests {
         settings.theme.number = .systemRed
         settings.alternatingLineBackgroundsEnabled = false
         settings.lineTintIntensity = 0.5
+        settings.defaultAnswerColumnFraction = 0.5
         settings.resetToDefaults()
         #expect(settings.theme == .default)
         #expect(settings.alternatingLineBackgroundsEnabled == true)
         #expect(settings.lineTintIntensity == 0.75)
+        #expect(settings.defaultAnswerColumnFraction == 0.25)
     }
 
     @Test func bindingGetReturnsCurrentValue() {

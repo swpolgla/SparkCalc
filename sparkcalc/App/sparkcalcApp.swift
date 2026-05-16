@@ -4,8 +4,14 @@ import SwiftUI
 /// Creates a single resizable window containing the main calculator view.
 @main
 struct SparkcalcApp: App {
-    @State private var store = SheetStore()
-    @State private var themeSettings = ThemeSettings()
+    @State private var themeSettings: ThemeSettings
+    @State private var store: SheetStore
+
+    init() {
+        let theme = ThemeSettings()
+        _themeSettings = State(wrappedValue: theme)
+        _store = State(wrappedValue: SheetStore(defaultAnswerColumnFraction: theme.defaultAnswerColumnFraction))
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +19,9 @@ struct SparkcalcApp: App {
                 .environment(store)
                 .environment(themeSettings)
                 .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+                .onChange(of: themeSettings.defaultAnswerColumnFraction) { _, newValue in
+                    store.defaultAnswerColumnFraction = newValue
+                }
         }
         .defaultSize(width: 550, height: 550)
         .windowResizability(.contentMinSize)

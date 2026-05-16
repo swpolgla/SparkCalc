@@ -9,10 +9,12 @@ import Observation
 class SheetStore {
     var sheets: [Sheet] = []
     var activeSheetId: UUID?
+    var defaultAnswerColumnFraction: CGFloat = 0.25
 
     private var nextSheetNumber = 1
 
-    init() {
+    init(defaultAnswerColumnFraction: CGFloat = 0.25) {
+        self.defaultAnswerColumnFraction = defaultAnswerColumnFraction
         let first = makeSheet()
         sheets.append(first)
         activeSheetId = first.id
@@ -85,6 +87,7 @@ class SheetStore {
 
     private func makeSheet() -> Sheet {
         let sheet = Sheet(name: "Sheet \(nextSheetNumber)")
+        sheet.answerColumnFraction = defaultAnswerColumnFraction
         nextSheetNumber += 1
         return sheet
     }

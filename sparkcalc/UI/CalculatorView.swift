@@ -15,10 +15,14 @@ struct CalculatorView: View {
     @Environment(ThemeSettings.self) var themeSettings
 
     @State private var textViewRef: GrowingTextView?
+    @State private var dividerDragStartFraction: CGFloat?
 
     static let defaultFontSize: CGFloat = 14
     private let editorFont = NSFont.monospacedSystemFont(ofSize: Self.defaultFontSize, weight: .regular)
-    private let answerColumnWidth: CGFloat = 120
+
+    private let minInputWidth: CGFloat = 150
+    private let minOutputWidth: CGFloat = 80
+    private let dividerHitWidth: CGFloat = 8
 
     private var lines: [String] {
         sheet.inputText.components(separatedBy: "\n")
@@ -34,6 +38,9 @@ struct CalculatorView: View {
     var body: some View {
         @Bindable var sheet = sheet
         GeometryReader { geo in
+            let maxOutputWidth = max(minOutputWidth, geo.size.width - minInputWidth - dividerHitWidth)
+            let answerColumnWidth = max(minOutputWidth, min(maxOutputWidth, geo.size.width * sheet.answerColumnFraction))
+
             ScrollView {
                 HStack(alignment: .top, spacing: 0) {
 
@@ -69,7 +76,45 @@ struct CalculatorView: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    Divider()
+                    ZStack {
+                        Rectangle()
+                            .fill(Color(nsColor: .separatorColor))
+                            .frame(width: 1)
+                        VStack(spacing: 2) {
+                            ForEach(0..<3) { _ in
+                                Capsule()
+                                    .fill(Color(nsColor: .separatorColor))
+                                    .frame(width: 4, height: 1)
+                            }
+                        }
+                    }
+                    .frame(width: dividerHitWidth)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.resizeLeftRight.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                            .onChanged { value in
+                                if dividerDragStartFraction == nil {
+                                    dividerDragStartFraction = sheet.answerColumnFraction
+                                }
+                                let deltaFraction = value.translation.width / geo.size.width
+                                // Invert sign because DragGesture translation is opposite to the
+                                // desired splitter direction on macOS.
+                                let newFraction = dividerDragStartFraction! - deltaFraction
+                                let minFraction = minOutputWidth / geo.size.width
+                                let maxFraction = maxOutputWidth / geo.size.width
+                                sheet.answerColumnFraction = max(minFraction, min(maxFraction, newFraction))
+                            }
+                            .onEnded { _ in
+                                dividerDragStartFraction = nil
+                            }
+                    )
 
                     // ── Right: answer column ─────────────────────────────
                     VStack(alignment: .trailing, spacing: 0) {
@@ -100,7 +145,7 @@ struct CalculatorView: View {
                             }
                             .frame(maxWidth: .infinity)
 
-                            Divider().hidden()
+                            Color.clear.frame(width: dividerHitWidth)
 
                             VStack(spacing: 0) {
                                 ForEach(sheet.lineHeights.indices, id: \.self) { index in

@@ -11,6 +11,7 @@ class ThemeSettings {
     var theme: SyntaxTheme = .default
     var alternatingLineBackgroundsEnabled: Bool = true
     var lineTintIntensity: Double = 0.75
+    var defaultAnswerColumnFraction: CGFloat = 0.25
 
     static let presets: [PresetColor] = [
         PresetColor(name: "Label", color: .labelColor),
@@ -46,6 +47,7 @@ class ThemeSettings {
         theme = .default
         alternatingLineBackgroundsEnabled = true
         lineTintIntensity = 0.75
+        defaultAnswerColumnFraction = 0.25
     }
 
     /// Creates a `Binding<NSColor>` for a specific property of the current theme.

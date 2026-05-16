@@ -14,6 +14,7 @@ class Sheet: Identifiable {
     var inputText: String = ""
     var lineHeights: [CGFloat] = [Sheet.defaultLineHeight]
     var answers: [String] = []
+    var answerColumnFraction: CGFloat = 0.25
 
     let engine: CalculatorEngine
     let highlighter: SyntaxHighlighter

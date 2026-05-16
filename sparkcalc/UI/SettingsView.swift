@@ -20,6 +20,17 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Layout") {
+                HStack {
+                    Text("Default Output Pane Width")
+                    Spacer()
+                    Text("\(Int(settings.defaultAnswerColumnFraction * 100))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $settings.defaultAnswerColumnFraction, in: 0.1...0.9, step: 0.01)
+            }
+
             Section("Syntax Colors") {
                 ColorSettingRow(title: "Answer", color: settings.binding(for: \.answer))
                 ColorSettingRow(title: "Function Call", color: settings.binding(for: \.functionCall))

@@ -18,6 +18,12 @@ struct SheetStoreTests {
         #expect(store.activeSheetId == store.sheets.last?.id)
     }
 
+    @Test func addSheetUsesDefaultAnswerColumnFraction() {
+        let store = SheetStore(defaultAnswerColumnFraction: 0.5)
+        store.addSheet()
+        #expect(store.sheets.last?.answerColumnFraction == 0.5)
+    }
+
     @Test func removeSheet() {
         let store = SheetStore()
         let first = store.sheets[0]
