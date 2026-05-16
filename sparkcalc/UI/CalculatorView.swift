@@ -121,11 +121,12 @@ struct CalculatorView: View {
                         let equationAnswers = sheet.answers
                         ForEach(equationAnswers.enumerated(), id: \.offset) { index, line in
                             let height = index < sheet.lineHeights.count ? sheet.lineHeights[index] : Sheet.defaultLineHeight
-                            Text(line)
-                                .font(Font(editorFont))
-                                .foregroundStyle(Color(nsColor: themeSettings.theme.answer))
-                                .padding(.horizontal, 8)
-                                .frame(height: height, alignment: .bottom)
+                            AnswerLineView(
+                                answer: line,
+                                height: height,
+                                font: Font(editorFont),
+                                color: Color(nsColor: themeSettings.theme.answer)
+                            )
                         }
                         Spacer()
                     }
@@ -175,6 +176,80 @@ struct CalculatorView: View {
                 DispatchQueue.main.async {
                     tv.window?.makeFirstResponder(tv)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Answer Line View
+
+/// A single line in the answer column that supports tap-to-copy.
+///
+/// Displays the formatted result and provides hover affordance, haptic feedback,
+/// and a brief visual flash when the user taps to copy the value to the pasteboard.
+/// Empty lines are non-interactive.
+private struct AnswerLineView: View {
+    let answer: String
+    let height: CGFloat
+    let font: Font
+    let color: Color
+
+    @State private var isHovered = false
+    @State private var isFlashing = false
+
+    private var isCopyable: Bool { !answer.isEmpty }
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Text(answer)
+                .font(font)
+                .foregroundStyle(color)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(
+                    isFlashing
+                        ? Color(nsColor: .selectedContentBackgroundColor)
+                        : (isHovered && isCopyable ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.15) : Color.clear)
+                )
+                .cornerRadius(100)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard isCopyable else { return }
+                    copyToClipboard(answer)
+                    triggerClickFeedback()
+                }
+                .onHover { hovering in
+                    isHovered = hovering
+                    if hovering && isCopyable {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .help(isCopyable ? "Copy to clipboard" : "")
+        }
+        .frame(height: height, alignment: .bottom)
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    private func triggerClickFeedback() {
+        NSHapticFeedbackManager.defaultPerformer.perform(
+            .generic,
+            performanceTime: .default
+        )
+
+        withAnimation(.easeInOut(duration: 0.08)) {
+            isFlashing = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isFlashing = false
             }
         }
     }
