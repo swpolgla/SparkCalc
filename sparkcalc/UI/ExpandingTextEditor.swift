@@ -17,6 +17,33 @@ class GrowingTextView: NSTextView {
     /// in the ZStack cannot steal focus from the active sheet.
     var isActive: Bool = true
 
+    /// When `false`, blocks automatic period substitution from double-space.
+    var smartSubstitutionsEnabled: Bool = false
+
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        if !smartSubstitutionsEnabled,
+           let text = string as? String,
+           text == ". ",
+           let event = NSApp.currentEvent,
+           event.type == .keyDown,
+           event.characters == " " {
+            let fullString = self.string as NSString
+            let loc = replacementRange.location
+            let len = replacementRange.length
+            if len == 1,
+               loc < fullString.length,
+               fullString.character(at: loc) == unichar((" " as UnicodeScalar).value) {
+                // System is replacing the previous space with ". " — keep both spaces.
+                super.insertText("  ", replacementRange: replacementRange)
+            } else {
+                // System is inserting ". " at the cursor — just insert the new space.
+                super.insertText(" ", replacementRange: replacementRange)
+            }
+            return
+        }
+        super.insertText(string, replacementRange: replacementRange)
+    }
+
     override var undoManager: UndoManager? {
         sheetUndoManager ?? super.undoManager
     }
@@ -99,10 +126,12 @@ struct ExpandingTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.usesFindBar = true
 
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
+        let smartSubs = themeSettings.smartSubstitutionsEnabled
+        textView.isAutomaticQuoteSubstitutionEnabled = smartSubs
+        textView.isAutomaticDashSubstitutionEnabled = smartSubs
+        textView.isAutomaticLinkDetectionEnabled = smartSubs
+        textView.isAutomaticTextReplacementEnabled = smartSubs
+        textView.smartSubstitutionsEnabled = smartSubs
 
         textView.delegate = context.coordinator
         textView.layoutManager?.delegate = context.coordinator
@@ -147,6 +176,16 @@ struct ExpandingTextEditor: NSViewRepresentable {
 
         // Keep first-responder eligibility in sync with visibility
         nsView.isActive = isActive
+
+        // Keep smart substitution flags in sync with settings
+        let smartSubs = themeSettings.smartSubstitutionsEnabled
+        if nsView.smartSubstitutionsEnabled != smartSubs {
+            nsView.isAutomaticQuoteSubstitutionEnabled = smartSubs
+            nsView.isAutomaticDashSubstitutionEnabled = smartSubs
+            nsView.isAutomaticLinkDetectionEnabled = smartSubs
+            nsView.isAutomaticTextReplacementEnabled = smartSubs
+            nsView.smartSubstitutionsEnabled = smartSubs
+        }
     }
 
     static func dismantleNSView(_ nsView: GrowingTextView, coordinator: Coordinator) {

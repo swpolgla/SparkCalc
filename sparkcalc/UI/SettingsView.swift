@@ -10,6 +10,8 @@ struct SettingsView: View {
         @Bindable var settings = settings
         Form {
             Section {
+                Toggle("Enable Smart Substitutions", isOn: $settings.smartSubstitutionsEnabled)
+
                 Toggle("Alternating Line Backgrounds", isOn: $settings.alternatingLineBackgroundsEnabled)
 
                 if settings.alternatingLineBackgroundsEnabled {
