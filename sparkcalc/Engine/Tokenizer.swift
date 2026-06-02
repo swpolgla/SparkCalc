@@ -47,7 +47,7 @@ struct Tokenizer {
 
             if ch.isLetter || ch == "_" {
                 var ident = ""
-                while i < expr.endIndex && (expr[i].isLetter || expr[i].isNumber || expr[i] == "_") {
+                while i < expr.endIndex && (expr[i].isLetter || expr[i].isNumber || expr[i] == "_" || expr[i] == ".") {
                     ident.append(expr[i])
                     i = expr.index(after: i)
                 }
@@ -74,9 +74,9 @@ struct Tokenizer {
 
     /// Checks whether `s` is a legal identifier.
     ///
-    /// Identifiers must match `^[a-zA-Z_][a-zA-Z0-9_]*$`.
+    /// Identifiers must match `^[a-zA-Z_][a-zA-Z0-9_.]*$`.
     func isValidIdentifier(_ s: String) -> Bool {
         guard !s.isEmpty else { return false }
-        return s.range(of: #"^[a-zA-Z_][a-zA-Z0-9_]*$"#, options: .regularExpression) != nil
+        return s.range(of: #"^[a-zA-Z_][a-zA-Z0-9_.]*$"#, options: .regularExpression) != nil
     }
 }

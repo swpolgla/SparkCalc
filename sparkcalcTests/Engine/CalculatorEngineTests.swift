@@ -495,6 +495,29 @@ struct CalculatorEngineTests {
         #expect(results == [""])
     }
 
+    @Test func dottedVariableAssignment() {
+        let engine = CalculatorEngine()
+        let results = engine.evaluate(lines: [
+            "my.var = 5",
+            "my.var * 2"
+        ])
+        #expect(results == ["5", "10"])
+    }
+
+    @Test func dottedVariableWithConsecutiveDots() {
+        let engine = CalculatorEngine()
+        let results = engine.evaluate(lines: [
+            "my...var = 10",
+            "my...var + 1"
+        ])
+        #expect(results == ["10", "11"])
+    }
+
+    @Test func dottedFunctionNameRejected() {
+        let engine = CalculatorEngine()
+        #expect(engine.tryParseFunctionHeader("my.func(a, b) {") == nil)
+    }
+
     @Test func unicodeConstantReadable() {
         let engine = CalculatorEngine()
         #expect(engine.evaluate(lines: ["π"]).first?.hasPrefix("3.14") == true)

@@ -51,6 +51,21 @@ struct TokenizerTests {
         if case .number(let v) = tokens[2].token { #expect(v == 0.25) }
     }
 
+    @Test func tokenizeDottedIdentifier() throws {
+        let t = Tokenizer()
+        let tokens = try t.tokenize("my.var + 5")
+        #expect(tokens.count == 3)
+        if case .ident(let s) = tokens[0].token { #expect(s == "my.var") }
+        if case .number(let v) = tokens[2].token { #expect(v == 5) }
+    }
+
+    @Test func tokenizeDottedIdentifierWithConsecutiveDots() throws {
+        let t = Tokenizer()
+        let tokens = try t.tokenize("my...var")
+        #expect(tokens.count == 1)
+        if case .ident(let s) = tokens[0].token { #expect(s == "my...var") }
+    }
+
     // MARK: - Error Cases
 
     @Test func tokenizeInvalidNumberThrows() {
@@ -83,6 +98,11 @@ struct TokenizerTests {
         #expect(t.isValidIdentifier("123abc") == false)
         #expect(t.isValidIdentifier("") == false)
         #expect(t.isValidIdentifier("π") == false) // Unicode fails regex
+        #expect(t.isValidIdentifier("my.var") == true)
+        #expect(t.isValidIdentifier("my...var") == true)
+        #expect(t.isValidIdentifier("a.b.c") == true)
+        #expect(t.isValidIdentifier(".my") == false)
+        #expect(t.isValidIdentifier("my.") == true)
     }
 
     // MARK: - Token Descriptions
