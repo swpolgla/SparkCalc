@@ -306,7 +306,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
             } while location < totalLength
 
             let endsWithNewline = totalLength > 0 && fullString.character(at: totalLength - 1) == unichar(("\n" as UnicodeScalar).value)
-            if totalLength == 0 || endsWithNewline {
+            if endsWithNewline {
                 heights.append(fallbackHeight)
             }
 
