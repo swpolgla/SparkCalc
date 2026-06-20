@@ -131,6 +131,10 @@ struct ExpandingTextEditor: NSViewRepresentable {
         textView.isAutomaticDashSubstitutionEnabled = smartSubs
         textView.isAutomaticLinkDetectionEnabled = smartSubs
         textView.isAutomaticTextReplacementEnabled = smartSubs
+        // Note: isAutomaticPeriodSubstitutionEnabled is not available in AppKit
+        // (it is UIKit-only). Period substitution is handled by the
+        // `insertText` override in GrowingTextView when smartSubstitutionsEnabled
+        // is false.
         textView.smartSubstitutionsEnabled = smartSubs
 
         textView.delegate = context.coordinator
@@ -159,6 +163,9 @@ struct ExpandingTextEditor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: GrowingTextView, context: Context) {
+        // Keep coordinator's parent reference in sync (defensive — standard pattern).
+        context.coordinator.parent = self
+
         // IMPORTANT: Do not continuously push `text` into the NSTextView.
         // Doing so breaks native undo/redo. The NSTextView is the source of truth
         // during normal editing. We will update SwiftUI state from textDidChange.
@@ -184,6 +191,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
             nsView.isAutomaticDashSubstitutionEnabled = smartSubs
             nsView.isAutomaticLinkDetectionEnabled = smartSubs
             nsView.isAutomaticTextReplacementEnabled = smartSubs
+            // Period substitution handled via insertText override (see makeNSView).
             nsView.smartSubstitutionsEnabled = smartSubs
         }
     }
@@ -194,6 +202,8 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // this text view so dangling targets don't remain in the undo manager
         // after the view is deallocated.
         nsView.sheetUndoManager?.removeAllActions(withTarget: nsView)
+        nsView.textStorage?.delegate = nil
+        nsView.layoutManager?.delegate = nil
     }
 
     // MARK: Programmatic text setting (for future document load / clear)

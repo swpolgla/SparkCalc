@@ -55,16 +55,16 @@ class SheetStore {
     }
 
     func activatePreviousSheet() {
-        guard let activeSheetId,
-              let currentIndex = sheets.firstIndex(where: { $0.id == activeSheetId }),
+        guard let activeId = activeSheetId,
+              let currentIndex = sheets.firstIndex(where: { $0.id == activeId }),
               sheets.count > 1 else { return }
         let previousIndex = currentIndex == 0 ? sheets.count - 1 : currentIndex - 1
         self.activeSheetId = sheets[previousIndex].id
     }
 
     func activateNextSheet() {
-        guard let activeSheetId,
-              let currentIndex = sheets.firstIndex(where: { $0.id == activeSheetId }),
+        guard let activeId = activeSheetId,
+              let currentIndex = sheets.firstIndex(where: { $0.id == activeId }),
               sheets.count > 1 else { return }
         let nextIndex = currentIndex == sheets.count - 1 ? 0 : currentIndex + 1
         self.activeSheetId = sheets[nextIndex].id
@@ -75,11 +75,16 @@ class SheetStore {
         sheets[index].name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func moveSheet(id: UUID, toBaseIndex: Int) {
+    /// Moves the sheet with the given ID to the specified destination index.
+    /// - Parameters:
+    ///   - id: The UUID of the sheet to move.
+    ///   - destinationIndex: The target insertion index in `sheets`. The sheet
+    ///     is inserted before the sheet currently at this index.
+    func moveSheet(id: UUID, to destinationIndex: Int) {
         guard let fromIndex = sheets.firstIndex(where: { $0.id == id }),
-              toBaseIndex >= 0, toBaseIndex <= sheets.count else { return }
+              destinationIndex >= 0, destinationIndex <= sheets.count else { return }
         let sheet = sheets.remove(at: fromIndex)
-        let target = min(toBaseIndex, sheets.count)
+        let target = min(destinationIndex, sheets.count)
         sheets.insert(sheet, at: target)
     }
 

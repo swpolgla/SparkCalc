@@ -27,6 +27,7 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
         }
         .frame(minWidth: 300, minHeight: 300)
+        .accessibilityElement(children: .contain)
     }
 }
 

@@ -8,7 +8,7 @@ import Foundation
 /// corresponding entry in the output. Function definition lines and blank/invalid
 /// lines return an empty string. This is a convenience wrapper that creates a fresh
 /// `CalculatorEngine` for one-shot evaluation.
-public func evaluateLines(_ lines: [String]) -> [String] {
+internal func evaluateLines(_ lines: [String]) -> [String] {
     let engine = CalculatorEngine()
     return engine.evaluate(lines: lines)
 }
@@ -23,7 +23,13 @@ public func evaluateLines(_ lines: [String]) -> [String] {
 /// - Special values (`NaN`, `±∞`) are rendered as human-readable symbols.
 private let integerDisplayThreshold = 1e15
 private let numberFormat = "%.15g"
-private let trailingZeroPattern = #"\.?0+$"#
+
+/// Precompiled regex for stripping trailing zeros after a decimal point (`\.?0+$`).
+/// Cached to avoid recompiling on every `formatResult` call, which runs per line.
+private let trailingZeroRegex: NSRegularExpression = {
+    let pattern = #"\.?0+$"#
+    return try! NSRegularExpression(pattern: pattern)
+}()
 
 func formatResult(_ value: Double) -> String {
     if value.isNaN      { return "NaN" }
@@ -35,7 +41,8 @@ func formatResult(_ value: Double) -> String {
 
     var str = String(format: numberFormat, value)
     if str.contains(".") && !str.contains("e") && !str.contains("E") {
-        str = str.replacingOccurrences(of: trailingZeroPattern, with: "", options: .regularExpression)
+        let range = NSRange(str.startIndex..., in: str)
+        str = trailingZeroRegex.stringByReplacingMatches(in: str, range: range, withTemplate: "")
     }
     return str
 }

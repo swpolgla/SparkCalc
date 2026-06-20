@@ -24,10 +24,6 @@ struct CalculatorView: View {
     private let minOutputWidth: CGFloat = 80
     private let dividerHitWidth: CGFloat = 8
 
-    private var lines: [String] {
-        sheet.inputText.components(separatedBy: "\n")
-    }
-
     private func alternatingRowBackground(for index: Int) -> Color {
         guard index % 2 == 1 else { return Color.clear }
         let colors = NSColor.alternatingContentBackgroundColors
@@ -168,16 +164,17 @@ struct CalculatorView: View {
         .onAppear {
             sheet.updateAnswers()
         }
-        .onChange(of: sheet.inputText) {
+        .onChange(of: sheet.inputText) { _, _ in
             sheet.updateAnswers()
         }
-        .onChange(of: isActive) {
+        .onChange(of: isActive) { _, _ in
             if isActive, let tv = textViewRef {
                 DispatchQueue.main.async {
                     tv.window?.makeFirstResponder(tv)
                 }
             }
         }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -212,7 +209,7 @@ private struct AnswerLineView: View {
                         ? Color(nsColor: .selectedContentBackgroundColor)
                         : (isHovered && isCopyable ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.15) : Color.clear)
                 )
-                .cornerRadius(100)
+                .clipShape(RoundedRectangle(cornerRadius: 100, style: .continuous))
                 .contentShape(Rectangle())
                 .onTapGesture {
                     guard isCopyable else { return }
@@ -228,6 +225,13 @@ private struct AnswerLineView: View {
                     }
                 }
                 .help(isCopyable ? "Copy to clipboard" : "")
+                .accessibilityLabel(isCopyable ? "Answer: \(answer)" : "Empty answer")
+                .accessibilityAddTraits(isCopyable ? .isButton : [])
+                .accessibilityAction(.default) {
+                    guard isCopyable else { return }
+                    copyToClipboard(answer)
+                    triggerClickFeedback()
+                }
         }
         .frame(height: height, alignment: .bottom)
     }

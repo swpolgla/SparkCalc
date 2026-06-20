@@ -99,8 +99,8 @@ The parser handles operator precedence, unary operators, postfix percentages, an
 
 ## Build Requirements
 
-- macOS 15+
-- Xcode 16+
+- macOS 26.2+
+- Xcode 26+
 - Swift 6
 
 ---

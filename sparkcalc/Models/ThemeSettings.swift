@@ -45,11 +45,12 @@ class ThemeSettings {
     }
 
     func resetToDefaults() {
-        theme = .default
-        alternatingLineBackgroundsEnabled = true
-        lineTintIntensity = 0.75
-        defaultAnswerColumnFraction = 0.25
-        smartSubstitutionsEnabled = false
+        let defaults = ThemeSettings()
+        theme = defaults.theme
+        alternatingLineBackgroundsEnabled = defaults.alternatingLineBackgroundsEnabled
+        lineTintIntensity = defaults.lineTintIntensity
+        defaultAnswerColumnFraction = defaults.defaultAnswerColumnFraction
+        smartSubstitutionsEnabled = defaults.smartSubstitutionsEnabled
     }
 
     /// Creates a `Binding<NSColor>` for a specific property of the current theme.

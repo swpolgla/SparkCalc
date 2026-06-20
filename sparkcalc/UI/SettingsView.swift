@@ -18,6 +18,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Tint Intensity")
                         Slider(value: $settings.lineTintIntensity, in: 0...1)
+                            .accessibilityLabel("Tint Intensity")
                     }
                 }
             }
@@ -31,6 +32,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Slider(value: $settings.defaultAnswerColumnFraction, in: 0.1...0.9, step: 0.01)
+                    .accessibilityLabel("Default Output Pane Width")
             }
 
             Section("Syntax Colors") {
@@ -129,4 +131,9 @@ struct NSColorWellView: NSViewRepresentable {
             parent.color = sender.color
         }
     }
+}
+
+#Preview {
+    SettingsView()
+        .environment(ThemeSettings())
 }

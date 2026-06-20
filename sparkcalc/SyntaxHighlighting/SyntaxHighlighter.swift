@@ -8,9 +8,13 @@ import Observation
 /// comparing the current document state against a cached `HighlightState`, it
 /// limits re-highlighting to the suffix of lines that may have changed.
 ///
-/// Coloring rules are driven by a fresh `CalculatorEngine` pass that builds
-/// line classifications and variable scoping information.
-class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
+/// Coloring rules are driven by a pass over the sheet's shared
+/// `CalculatorEngine` — the same instance used to compute the answer column.
+/// This guarantees highlighting and answers always agree on variable and
+/// function state. Do NOT create a fresh engine for highlighting; see the
+/// shared-engine invariant documented in AGENTS.md.
+@MainActor
+final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     var theme = SyntaxTheme()
     var engine: CalculatorEngine
@@ -31,6 +35,12 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     /// Binds the highlighter to a shared `ThemeSettings` so it re-highlights
     /// whenever the user changes a syntax color.
     func bind(to settings: ThemeSettings) {
+        // Apply the current theme immediately so a non-default theme is in
+        // effect from the first highlight pass (not just on future changes).
+        self.theme = settings.theme
+        if let textStorage = textView?.textStorage {
+            forceFullHighlight(on: textStorage)
+        }
         observeTheme(in: settings)
     }
 
@@ -323,7 +333,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             let leftSide = String(line[line.startIndex..<assignIdx])
             let rightSide = String(line[line.index(after: assignIdx)...])
             let leftOffset = charOffset
-            let equalsOffset = charOffset + line.distance(from: line.startIndex, to: assignIdx)
+            let equalsOffset = charOffset + assignIdx.utf16Offset(in: line)
             let rightOffset = equalsOffset + 1
 
             // Color '='
@@ -448,7 +458,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         var processOffset = charOffset
         if trimmed.hasPrefix("return"), let returnRange = line.range(of: "return") {
             processString = String(line[returnRange.upperBound...])
-            processOffset = charOffset + line.distance(from: line.startIndex, to: returnRange.upperBound)
+            processOffset = charOffset + returnRange.upperBound.utf16Offset(in: line)
         }
 
         // Assignment split for body lines too
@@ -456,7 +466,7 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             let leftSide = String(processString[processString.startIndex..<assignIdx])
             let rightSide = String(processString[processString.index(after: assignIdx)...])
             let leftOffset = processOffset
-            let equalsOffset = processOffset + processString.distance(from: processString.startIndex, to: assignIdx)
+            let equalsOffset = processOffset + assignIdx.utf16Offset(in: processString)
             let rightOffset = equalsOffset + 1
 
             textStorage.addAttribute(.foregroundColor, value: theme.operatorColor, range: NSRange(location: equalsOffset, length: 1))
@@ -595,6 +605,11 @@ class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
     // MARK: - Range Helpers
 
+    /// Converts a `Range<String.Index>` to an `NSRange` relative to the full document.
+    ///
+    /// Uses `.utf16Offset(in:)` (not `String.distance`) because `NSTextStorage`
+    /// requires UTF-16 code unit offsets for compatibility with emoji and CJK
+    /// characters that span surrogate pairs. See AGENTS.md "Common Pitfalls".
     private func nsRange(from range: Range<String.Index>, in string: String, charOffset: Int) -> NSRange {
         let start = range.lowerBound.utf16Offset(in: string)
         let end = range.upperBound.utf16Offset(in: string)

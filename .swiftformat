@@ -1,0 +1,14 @@
+--options:
+  indent: 4
+  --extensionattributes: onsameline
+  --trimwhitespace: always
+  --elseplacement: same-line
+  --closureparams: shorthand
+  --self: remove
+  --semicolons: never
+  --trailingclosures: always
+  --ranges: no-space
+--excludes:
+  .build
+  DerivedData
+  build

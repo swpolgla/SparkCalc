@@ -20,6 +20,15 @@ struct SheetTests {
         #expect(sheet.id == id)
     }
 
+    @Test func answerColumnFractionDefault() {
+        let sheet = Sheet(name: "Test")
+        #expect(sheet.answerColumnFraction == 0.25)
+    }
+
+    @Test func defaultLineHeightIs17() {
+        #expect(Sheet.defaultLineHeight == 17)
+    }
+
     // MARK: - updateAnswers
 
     @Test func updateAnswersEvaluatesExpressions() {
@@ -47,6 +56,24 @@ struct SheetTests {
         sheet.inputText = "a = 5\na * 2"
         sheet.updateAnswers()
         #expect(sheet.answers == ["5", "10"])
+    }
+
+    @Test func updateAnswersWithFunctionDefinition() {
+        let sheet = Sheet(name: "Func")
+        sheet.inputText = "f(a, b) {\n  return a + b\n}\nf(1, 2)"
+        sheet.updateAnswers()
+        #expect(sheet.answers.count == 4)
+        #expect(sheet.answers[0] == "")  // function header
+        #expect(sheet.answers[1] == "")  // function body
+        #expect(sheet.answers[2] == "")  // function close
+        #expect(sheet.answers[3] == "3") // function call
+    }
+
+    @Test func updateAnswersWithInvalidExpression() {
+        let sheet = Sheet(name: "Error")
+        sheet.inputText = "1 + * 2"
+        sheet.updateAnswers()
+        #expect(sheet.answers == [""])
     }
 
     // MARK: - lineHeights

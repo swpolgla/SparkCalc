@@ -1,0 +1,35 @@
+# SwiftLint configuration for SparkCalc
+# Conservative rules — the codebase is already clean, so this enforces the status quo.
+
+opt_in_rules:
+  - accessibility_label_for_image
+  - force_unwrapping
+  - force_cast
+  - todo
+  - closure_end_indentation
+  - literal_expression_end_indentation
+  - operator_usage_whitespace
+  - sorted_first_last
+  - vertical_whitespace_closing_braces
+
+disabled_rules:
+  - trailing_whitespace
+  - type_body_length
+  - function_body_length
+  - file_length
+  - line_length
+  - nesting
+
+type_name:
+  min_length: 3
+  max_length: 40
+
+identifier_name:
+  min_length: 1
+  max_length: 40
+  allowed_symbols: ["_"]
+
+excluded:
+  - .build
+  - DerivedData
+  - build

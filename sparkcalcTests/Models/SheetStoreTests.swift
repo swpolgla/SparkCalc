@@ -64,7 +64,7 @@ struct SheetStoreTests {
         store.addSheet()
         let firstId = store.sheets[0].id
         let secondId = store.sheets[1].id
-        store.moveSheet(id: firstId, toBaseIndex: 1)
+        store.moveSheet(id: firstId, to: 1)
         #expect(store.sheets[1].id == firstId)
         #expect(store.sheets[0].id == secondId)
     }
@@ -153,7 +153,7 @@ struct SheetStoreTests {
         store.addSheet()
         let activeId = store.activeSheetId!
         let firstId = store.sheets[0].id
-        store.moveSheet(id: firstId, toBaseIndex: 0)
+        store.moveSheet(id: firstId, to: 0)
         #expect(store.activeSheetId == activeId)
         #expect(store.sheets.contains(where: { $0.id == store.activeSheetId }))
     }
@@ -201,7 +201,7 @@ struct SheetStoreTests {
         store.addSheet()
         let originalOrder = store.sheets.map { $0.id }
         let firstId = store.sheets[0].id
-        store.moveSheet(id: firstId, toBaseIndex: 0)
+        store.moveSheet(id: firstId, to: 0)
         #expect(store.sheets.map { $0.id } == originalOrder)
     }
 
@@ -210,9 +210,9 @@ struct SheetStoreTests {
         store.addSheet()
         let originalOrder = store.sheets.map { $0.id }
         let firstId = store.sheets[0].id
-        store.moveSheet(id: UUID(), toBaseIndex: 0)
-        store.moveSheet(id: firstId, toBaseIndex: -1)
-        store.moveSheet(id: firstId, toBaseIndex: 10)
+        store.moveSheet(id: UUID(), to: 0)
+        store.moveSheet(id: firstId, to: -1)
+        store.moveSheet(id: firstId, to: 10)
         #expect(store.sheets.map { $0.id } == originalOrder)
     }
 
@@ -221,7 +221,7 @@ struct SheetStoreTests {
         store.addSheet()
         store.addSheet()
         let lastId = store.sheets[2].id
-        store.moveSheet(id: lastId, toBaseIndex: 0)
+        store.moveSheet(id: lastId, to: 0)
         #expect(store.sheets[0].id == lastId)
     }
 

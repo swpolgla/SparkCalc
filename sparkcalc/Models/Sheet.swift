@@ -16,7 +16,11 @@ class Sheet: Identifiable {
     var answers: [String] = []
     var answerColumnFraction: CGFloat = 0.25
 
+    /// Per-sheet calculator engine. `let` by design so `@Observable` does not
+    /// wrap it in observation tracking — no `@ObservationIgnored` needed.
     let engine: CalculatorEngine
+    /// Per-sheet syntax highlighter. Shares the same engine instance as `engine`
+    /// so highlighting and answers always agree. `let` by design (same reason).
     let highlighter: SyntaxHighlighter
 
     /// Per-sheet undo manager. Provides isolated undo/redo history so that

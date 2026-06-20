@@ -8,14 +8,36 @@ import Foundation
 /// Supports variables, user-defined multi-line functions, and a library of built-ins.
 /// The engine evaluates line-by-line top-to-bottom, maintaining mutable state for
 /// variables across the sheet.
-class CalculatorEngine {
+final class CalculatorEngine {
 
-    static let builtInFunctions: Set<String> = [
-        "sqrt", "cbrt", "abs", "ceil", "floor", "round",
-        "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
-        "log", "log2", "log10", "exp", "pow",
-        "min", "max", "hypot"
+    /// Table-driven builtin function dispatch.
+    /// `arity` is `nil` for variadic functions (minimum 2 args, e.g. `min`/`max`).
+    /// This is the single source of truth — `builtInFunctions` is derived from it.
+    private static let builtIns: [String: (arity: Int?, fn: ([Double]) throws -> Double)] = [
+        "sqrt":  (1, { args in sqrt(args[0]) }),
+        "cbrt":  (1, { args in cbrt(args[0]) }),
+        "abs":   (1, { args in abs(args[0]) }),
+        "ceil":  (1, { args in ceil(args[0]) }),
+        "floor": (1, { args in floor(args[0]) }),
+        "round": (1, { args in round(args[0]) }),
+        "sin":   (1, { args in sin(args[0]) }),
+        "cos":   (1, { args in cos(args[0]) }),
+        "tan":   (1, { args in tan(args[0]) }),
+        "asin":  (1, { args in asin(args[0]) }),
+        "acos":  (1, { args in acos(args[0]) }),
+        "atan":  (1, { args in atan(args[0]) }),
+        "atan2": (2, { args in atan2(args[0], args[1]) }),
+        "log":   (1, { args in log(args[0]) }),
+        "log2":  (1, { args in log2(args[0]) }),
+        "log10": (1, { args in log10(args[0]) }),
+        "exp":   (1, { args in exp(args[0]) }),
+        "pow":   (2, { args in pow(args[0], args[1]) }),
+        "min":   (nil, { args in args.min()! }),
+        "max":   (nil, { args in args.max()! }),
+        "hypot": (2, { args in hypot(args[0], args[1]) }),
     ]
+
+    static let builtInFunctions: Set<String> = Set(builtIns.keys)
 
     static let builtInConstants: Set<String> = [
         "pi", "π", "e", "phi", "φ",
@@ -53,12 +75,23 @@ class CalculatorEngine {
         "R":       8.314462618,         // ideal gas constant (J·mol⁻¹·K⁻¹)
     ]
 
-    var variables: [String: Double] = CalculatorEngine.defaultVariables
+    /// Precompiled regex for matching function declaration headers like `add(a, b) {`.
+    /// Hoisted to a static to avoid recompiling on every call (hot path: invoked
+    /// once per line per keystroke during both evaluation and syntax highlighting).
+    private static let functionHeaderRegex: NSRegularExpression = {
+        let pattern = #"^([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\s*\{$"#
+        return try! NSRegularExpression(pattern: pattern)
+    }()
 
-    var functions: [String: FunctionDefinition] = [:]
+    private(set) var variables: [String: Double] = CalculatorEngine.defaultVariables
+
+    private(set) var functions: [String: FunctionDefinition] = [:]
 
     private var recursionDepth: Int = 0
-    private let maxRecursionDepth = 256
+    /// The maximum recursion depth for user-defined functions.
+    /// Exceeding this throws `CalculatorError.recursionLimitExceeded`.
+    /// Documented in AGENTS.md as a deliberate limit to prevent stack overflow.
+    private static let maxRecursionDepth = 256
     private let tokenizer = Tokenizer()
 
     /// Evaluates every line of the sheet and returns a formatted answer for each.
@@ -74,6 +107,7 @@ class CalculatorEngine {
         // Reset mutable state so the sheet text remains the sole source of truth.
         self.functions = [:]
         self.variables = Self.defaultVariables
+        self.recursionDepth = 0
 
         let annotated = collectFunctions(from: lines)
         var results: [String] = []
@@ -92,7 +126,12 @@ class CalculatorEngine {
                 do {
                     let value = try evaluateLine(trimmed)
                     results.append(formatResult(value))
+                } catch is CalculatorError {
+                    results.append("")
                 } catch {
+                    #if DEBUG
+                    print("Unexpected error during evaluation: \(error)")
+                    #endif
                     results.append("")
                 }
             }
@@ -149,9 +188,8 @@ class CalculatorEngine {
     ///
     /// Returns `nil` if the line does not conform to the expected pattern.
     func tryParseFunctionHeader(_ line: String) -> FunctionHeader? {
-        let pattern = #"^([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\s*\{$"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+        let lineLength = (line as NSString).length
+        guard let match = Self.functionHeaderRegex.firstMatch(in: line, range: NSRange(location: 0, length: lineLength)),
               let nameRange = Range(match.range(at: 1), in: line),
               let paramsRange = Range(match.range(at: 2), in: line) else {
             return nil
@@ -248,10 +286,10 @@ class CalculatorEngine {
     private func parseAddSub(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var left = try parseMulDiv(tokens: tokens, pos: &pos, localVars: localVars)
         while pos < tokens.count {
-            if case .op(let op) = tokens[pos], op == "+" || op == "-" {
+            if case .op(let op) = tokens[pos], op == .plus || op == .minus {
                 pos += 1
                 let right = try parseMulDiv(tokens: tokens, pos: &pos, localVars: localVars)
-                left = op == "+" ? left + right : left - right
+                left = op == .plus ? left + right : left - right
             } else { break }
         }
         return left
@@ -260,13 +298,13 @@ class CalculatorEngine {
     private func parseMulDiv(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var left = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
         while pos < tokens.count {
-            if case .op(let op) = tokens[pos], op == "*" || op == "/" || op == "%" {
+            if case .op(let op) = tokens[pos], op == .multiply || op == .divide || op == .percent {
                 pos += 1
                 let right = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
                 switch op {
-                case "*": left = left * right
-                case "/": left = left / right
-                case "%": left = left.truncatingRemainder(dividingBy: right)
+                case .multiply: left = left * right
+                case .divide:   left = left / right
+                case .percent:  left = left.truncatingRemainder(dividingBy: right)
                 default: break
                 }
             } else { break }
@@ -275,17 +313,17 @@ class CalculatorEngine {
     }
 
     private func parseUnary(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
-        if pos < tokens.count, case .op(let op) = tokens[pos], op == "-" || op == "+" {
+        if pos < tokens.count, case .op(let op) = tokens[pos], op == .minus || op == .plus {
             pos += 1
             let val = try parsePower(tokens: tokens, pos: &pos, localVars: localVars)
-            return op == "-" ? -val : val
+            return op == .minus ? -val : val
         }
         return try parsePower(tokens: tokens, pos: &pos, localVars: localVars)
     }
 
     private func parsePower(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         let base = try parsePostfix(tokens: tokens, pos: &pos, localVars: localVars)
-        if pos < tokens.count, case .op(let op) = tokens[pos], op == "^" {
+        if pos < tokens.count, case .op(let op) = tokens[pos], op == .power {
             pos += 1
             let exp = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
             return pow(base, exp)
@@ -295,7 +333,7 @@ class CalculatorEngine {
 
     private func parsePostfix(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var val = try parsePrimary(tokens: tokens, pos: &pos, localVars: localVars)
-        while pos < tokens.count, case .op(let op) = tokens[pos], op == "%" {
+        while pos < tokens.count, case .op(let op) = tokens[pos], op == .percent {
             let nextPos = pos + 1
             // If the next token starts a new operand, this % is binary modulo —
             // leave it for parseMulDiv to handle.
@@ -370,29 +408,13 @@ class CalculatorEngine {
     /// in `self.functions`, their parameters are bound to the supplied arguments, and the body
     /// is evaluated line-by-line.
     private func callFunction(name: String, args: [Double]) throws -> Double {
-        switch name {
-        case "sqrt":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return sqrt(args[0])
-        case "cbrt":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return cbrt(args[0])
-        case "abs":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return abs(args[0])
-        case "ceil":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return ceil(args[0])
-        case "floor": guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return floor(args[0])
-        case "round": guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return round(args[0])
-        case "sin":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return sin(args[0])
-        case "cos":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return cos(args[0])
-        case "tan":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return tan(args[0])
-        case "asin":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return asin(args[0])
-        case "acos":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return acos(args[0])
-        case "atan":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return atan(args[0])
-        case "atan2": guard args.count == 2 else { throw CalculatorError.wrongArgCount(name) }; return atan2(args[0], args[1])
-        case "log":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return log(args[0])
-        case "log2":  guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return log2(args[0])
-        case "log10": guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return log10(args[0])
-        case "exp":   guard args.count == 1 else { throw CalculatorError.wrongArgCount(name) }; return exp(args[0])
-        case "pow":   guard args.count == 2 else { throw CalculatorError.wrongArgCount(name) }; return pow(args[0], args[1])
-        case "min":   guard args.count >= 2, let result = args.min() else { throw CalculatorError.wrongArgCount(name) }; return result
-        case "max":   guard args.count >= 2, let result = args.max() else { throw CalculatorError.wrongArgCount(name) }; return result
-        case "hypot": guard args.count == 2 else { throw CalculatorError.wrongArgCount(name) }; return hypot(args[0], args[1])
-        default: break
+        if let builtin = Self.builtIns[name] {
+            if let arity = builtin.arity {
+                guard args.count == arity else { throw CalculatorError.wrongArgCount(name) }
+            } else {
+                guard args.count >= 2 else { throw CalculatorError.wrongArgCount(name) }
+            }
+            return try builtin.fn(args)
         }
 
         guard let def = functions[name] else { throw CalculatorError.undefinedFunction(name) }
@@ -400,7 +422,7 @@ class CalculatorEngine {
 
         recursionDepth += 1
         defer { recursionDepth -= 1 }
-        guard recursionDepth <= maxRecursionDepth else {
+        guard recursionDepth <= Self.maxRecursionDepth else {
             throw CalculatorError.recursionLimitExceeded
         }
 
@@ -424,7 +446,7 @@ class CalculatorEngine {
             if let assignRange = findTopLevelAssignment(in: trimmed) {
                 let varName = String(trimmed[trimmed.startIndex..<assignRange])
                     .trimmingCharacters(in: .whitespaces)
-            if tokenizer.isValidIdentifier(varName) {
+                if tokenizer.isValidIdentifier(varName) {
                     let exprStr = String(trimmed[trimmed.index(after: assignRange)...])
                         .trimmingCharacters(in: .whitespaces)
                     localVars[varName] = try evaluateExpression(exprStr, localVars: localVars)

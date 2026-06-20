@@ -3,8 +3,8 @@ import AppKit
 extension NSColor {
     /// Compares two colors within an RGB tolerance.
     func isEqual(to other: NSColor, tolerance: CGFloat = 0.001) -> Bool {
-        guard let s1 = self.usingColorSpace(.deviceRGB),
-              let s2 = other.usingColorSpace(.deviceRGB) else {
+        guard let s1 = self.usingColorSpace(.sRGB),
+              let s2 = other.usingColorSpace(.sRGB) else {
             return false
         }
         return abs(s1.redComponent - s2.redComponent) < tolerance &&

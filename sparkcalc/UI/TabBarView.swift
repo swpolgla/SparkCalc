@@ -27,6 +27,7 @@ struct TabBarView: View {
     @State private var dropTargetIndex: Int?
     @State private var tabFrames: [UUID: CGRect] = [:]
     @State private var scrollContainerWidth: CGFloat = 0
+    @State private var sheetToDelete: UUID?
     @FocusState private var renameFieldIsFocused: Bool
 
     private var showLeadingChevron: Bool {
@@ -85,6 +86,7 @@ struct TabBarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("New sheet")
+                .accessibilityLabel("New sheet")
                 .padding(.trailing, 8)
                 .onHover { hovering in
                     isAddButtonHovered = hovering
@@ -98,6 +100,24 @@ struct TabBarView: View {
                         proxy.scrollTo(newValue, anchor: .leading)
                     }
                 }
+            }
+            .confirmationDialog(
+                "Delete this sheet?",
+                isPresented: Binding(
+                    get: { sheetToDelete != nil },
+                    set: { if !$0 { sheetToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let id = sheetToDelete { store.removeSheet(id: id) }
+                    sheetToDelete = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    sheetToDelete = nil
+                }
+            } message: {
+                Text("This sheet contains calculations that will be lost.")
             }
         }
     }
@@ -115,6 +135,7 @@ struct TabBarView: View {
         }
         .buttonStyle(.plain)
         .help(direction == .left ? "Scroll tabs left" : "Scroll tabs right")
+        .accessibilityLabel(direction == .left ? "Scroll tabs left" : "Scroll tabs right")
     }
 
     private enum ChevronDirection {
@@ -158,20 +179,30 @@ struct TabBarView: View {
                 if renamingSheetId == sheet.id {
                     renameField(for: sheet)
                 } else {
-                    Text(sheet.name)
-                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
-                        .lineLimit(1)
-                        .onTapGesture {
-                            store.activateSheet(id: sheet.id)
-                        }
-                        .onDoubleClick {
-                            renamingSheetId = sheet.id
-                            renameText = sheet.name
-                        }
+                    Button {
+                        store.activateSheet(id: sheet.id)
+                    } label: {
+                        Text(sheet.name)
+                            .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sheet \(sheet.name)")
+                    .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+                    .onDoubleClick {
+                        renamingSheetId = sheet.id
+                        renameText = sheet.name
+                    }
                 }
 
                 if isActive || isHovered {
-                    Button(action: { store.removeSheet(id: sheet.id) }) {
+                    Button(action: {
+                        if sheet.inputText.isEmpty {
+                            store.removeSheet(id: sheet.id)
+                        } else {
+                            sheetToDelete = sheet.id
+                        }
+                    }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .bold))
                             .frame(width: 14, height: 14)
@@ -181,6 +212,7 @@ struct TabBarView: View {
                     .buttonStyle(.plain)
                     .opacity(hoveredCloseSheetId == sheet.id ? 1 : 0.5)
                     .help("Close sheet")
+                    .accessibilityLabel("Close sheet")
                     .onHover { hovering in
                         hoveredCloseSheetId = hovering ? sheet.id : nil
                     }
@@ -261,6 +293,9 @@ struct TabBarView: View {
         .textFieldStyle(.plain)
         .frame(width: 100)
         .focused($renameFieldIsFocused)
+        .onExitCommand {
+            renamingSheetId = nil
+        }
         .onAppear {
             renameFieldIsFocused = true
         }
@@ -311,7 +346,7 @@ private struct TabDropDelegate: DropDelegate {
 
             DispatchQueue.main.async {
                 withAnimation(.snappy) {
-                    store.moveSheet(id: draggedId, toBaseIndex: targetIndex)
+                    store.moveSheet(id: draggedId, to: targetIndex)
                 }
                 dropTargetIndex = nil
             }

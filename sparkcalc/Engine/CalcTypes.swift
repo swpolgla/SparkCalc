@@ -2,15 +2,29 @@ import Foundation
 
 // MARK: - Token Types
 
+/// The single-character operators recognized by the calculator.
+///
+/// Using an enum backed by `Character` instead of a raw `String` eliminates
+/// heap allocations for operator tokens and makes invalid operators
+/// unrepresentable at the type level.
+enum Operator: Character, Equatable, Hashable, Sendable {
+    case plus = "+"
+    case minus = "-"
+    case multiply = "*"
+    case divide = "/"
+    case power = "^"
+    case percent = "%"
+}
+
 /// A lexical token produced by the calculator's tokenizer.
 ///
 /// `Token` is the input vocabulary for the recursive-descent parser.
 /// Each case represents an atomic unit of an expression: numbers, identifiers,
 /// operators, and grouping punctuation.
-enum Token: CustomStringConvertible {
+enum Token: CustomStringConvertible, Equatable, Hashable, Sendable {
     case number(Double)
     case ident(String)
-    case op(String)
+    case op(Operator)
     case lparen
     case rparen
     case comma
@@ -19,7 +33,7 @@ enum Token: CustomStringConvertible {
         switch self {
         case .number(let v): return "\(v)"
         case .ident(let s): return s
-        case .op(let s):    return s
+        case .op(let op):   return String(op.rawValue)
         case .lparen:       return "("
         case .rparen:       return ")"
         case .comma:        return ","
@@ -32,7 +46,7 @@ enum Token: CustomStringConvertible {
 /// `range` is relative to the string that was tokenized, not the full document.
 /// This allows the syntax highlighter to map tokens back to exact character
 /// positions when applying color attributes.
-struct LocatedToken {
+struct LocatedToken: Sendable {
     let token: Token
     let range: Range<String.Index>
 }
