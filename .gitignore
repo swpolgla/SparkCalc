@@ -36,6 +36,7 @@ playground.xcworkspace
 
 .build/
 DerivedData/
+buildServer.json
 
 # CocoaPods
 #
