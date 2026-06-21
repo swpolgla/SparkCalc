@@ -59,7 +59,7 @@ class SheetStore {
               let currentIndex = sheets.firstIndex(where: { $0.id == activeId }),
               sheets.count > 1 else { return }
         let previousIndex = currentIndex == 0 ? sheets.count - 1 : currentIndex - 1
-        self.activeSheetId = sheets[previousIndex].id
+        activeSheetId = sheets[previousIndex].id
     }
 
     func activateNextSheet() {
@@ -67,7 +67,7 @@ class SheetStore {
               let currentIndex = sheets.firstIndex(where: { $0.id == activeId }),
               sheets.count > 1 else { return }
         let nextIndex = currentIndex == sheets.count - 1 ? 0 : currentIndex + 1
-        self.activeSheetId = sheets[nextIndex].id
+        activeSheetId = sheets[nextIndex].id
     }
 
     func renameSheet(id: UUID, to newName: String) {

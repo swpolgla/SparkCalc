@@ -1,9 +1,8 @@
-import Testing
 import AppKit
 @testable import sparkcalc
+import Testing
 
 struct HighlightStateTests {
-
     // MARK: - LineKind Equality
 
     @Test func lineKindFunctionHeaderEquality() {

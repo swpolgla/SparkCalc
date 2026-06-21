@@ -15,7 +15,6 @@ import Observation
 /// shared-engine invariant documented in AGENTS.md.
 @MainActor
 final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
-
     var theme = SyntaxTheme()
     var engine: CalculatorEngine
 
@@ -37,7 +36,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     func bind(to settings: ThemeSettings) {
         // Apply the current theme immediately so a non-default theme is in
         // effect from the first highlight pass (not just on future changes).
-        self.theme = settings.theme
+        theme = settings.theme
         if let textStorage = textView?.textStorage {
             forceFullHighlight(on: textStorage)
         }
@@ -71,8 +70,8 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     func textStorage(
         _ textStorage: NSTextStorage,
         didProcessEditing editedMask: NSTextStorageEditActions,
-        range editedRange: NSRange,
-        changeInLength delta: Int
+        range _: NSRange,
+        changeInLength _: Int
     ) {
         // Only respond to edits that changed characters, not just attributes.
         guard editedMask.contains(.editedCharacters) else { return }
@@ -106,25 +105,26 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         let lines = fullString.components(separatedBy: "\n")
 
         // Evaluate the shared engine to populate functions and variables.
-        self.engine.evaluate(lines: lines)
+        engine.evaluate(lines: lines)
 
         // Build line classifications
-        let lineClassifications = buildLineClassifications(lines: lines, engine: self.engine)
+        let lineClassifications = buildLineClassifications(lines: lines, engine: engine)
 
         // Build known variables progression
         var knownVariables: Set<String> = CalculatorEngine.builtInConstants
         var knownVariablesAfterLine: [Set<String>] = []
 
         // Check if we can do an incremental update
-        let currentFunctionNames = Set(self.engine.functions.keys)
+        let currentFunctionNames = Set(engine.functions.keys)
         var canIncremental = false
         var dirtyStart = 0
 
         if let prev = previousState,
            prev.lines.count == lines.count,
-           prev.functionNames == currentFunctionNames {
+           prev.functionNames == currentFunctionNames
+        {
             // Find the first line that changed
-            var firstDirty: Int? = nil
+            var firstDirty: Int?
             for i in 0..<lines.count {
                 if lines[i] != prev.lines[i] || lineClassifications[i] != prev.lineClassifications[i] {
                     firstDirty = i
@@ -193,7 +193,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 classification: classification,
                 charOffset: charOffset,
                 knownVariables: &knownVariables,
-                classificationEngine: self.engine,
+                classificationEngine: engine,
                 textStorage: textStorage
             )
 
@@ -201,9 +201,10 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
 
             // Check for stability point (incremental optimization)
             if canIncremental, let prev = previousState, i >= dirtyStart, i < prev.knownVariablesAfterLine.count {
-                if knownVariables == prev.knownVariablesAfterLine[i]
-                    && lines[i] == prev.lines[i]
-                    && lineClassifications[i] == prev.lineClassifications[i] {
+                if knownVariables == prev.knownVariablesAfterLine[i],
+                   lines[i] == prev.lines[i],
+                   lineClassifications[i] == prev.lineClassifications[i]
+                {
                     // Stability reached — copy remaining state from previous
                     textStorage.endEditing()
 
@@ -285,7 +286,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         guard !trimmed.isEmpty else { return }
 
         switch classification {
-        case .functionHeader(let funcName):
+        case let .functionHeader(funcName):
             highlightFunctionHeader(
                 line: line,
                 funcName: funcName,
@@ -294,7 +295,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 textStorage: textStorage
             )
 
-        case .functionBody(let funcName):
+        case let .functionBody(funcName):
             highlightFunctionBody(
                 line: line,
                 funcName: funcName,
@@ -402,7 +403,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         for locatedToken in tokens {
             let tokenNSRange = nsRange(from: locatedToken.range, in: beforeBrace, charOffset: charOffset)
             switch locatedToken.token {
-            case .ident(let name):
+            case let .ident(name):
                 if name == funcName {
                     textStorage.addAttribute(.foregroundColor, value: theme.functionDecl, range: tokenNSRange)
                 } else if paramNames.contains(name) {
@@ -440,13 +441,13 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         var localVars = Set<String>()
 
         // Collect prior local var declarations (best-effort, given only body strings)
-        if let funcDef = funcDef {
+        if let funcDef {
             for bodyLine in funcDef.body {
                 let bodyTrimmed = bodyLine.trimmingCharacters(in: .whitespaces)
                 if bodyTrimmed == trimmed { break }
                 if let assignIdx = classificationEngine.findTopLevelAssignment(in: bodyTrimmed) {
                     let varName = String(bodyTrimmed[bodyTrimmed.startIndex..<assignIdx]).trimmingCharacters(in: .whitespaces)
-                    if classificationEngine.isValidIdentifier(varName) && !paramNames.contains(varName) {
+                    if classificationEngine.isValidIdentifier(varName), !paramNames.contains(varName) {
                         localVars.insert(varName)
                     }
                 }
@@ -478,7 +479,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 if let leftTokens = try? classificationEngine.tokenize(leftSide) {
                     for locatedToken in leftTokens {
                         let tokenNSRange = nsRange(from: locatedToken.range, in: leftSide, charOffset: leftOffset)
-                        if case .ident(let name) = locatedToken.token {
+                        if case let .ident(name) = locatedToken.token {
                             if paramNames.contains(name) {
                                 textStorage.addAttribute(.foregroundColor, value: theme.localParamUse, range: tokenNSRange)
                             } else {
@@ -571,7 +572,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         case .number:
             return theme.number
 
-        case .ident(let name):
+        case let .ident(name):
             // Function call?
             let nextIndex = index + 1
             if nextIndex < allTokens.count, case .lparen = allTokens[nextIndex].token {

@@ -9,32 +9,31 @@ import Foundation
 /// The engine evaluates line-by-line top-to-bottom, maintaining mutable state for
 /// variables across the sheet.
 final class CalculatorEngine {
-
     /// Table-driven builtin function dispatch.
     /// `arity` is `nil` for variadic functions (minimum 2 args, e.g. `min`/`max`).
     /// This is the single source of truth — `builtInFunctions` is derived from it.
     private static let builtIns: [String: (arity: Int?, fn: ([Double]) throws -> Double)] = [
-        "sqrt":  (1, { args in sqrt(args[0]) }),
-        "cbrt":  (1, { args in cbrt(args[0]) }),
-        "abs":   (1, { args in abs(args[0]) }),
-        "ceil":  (1, { args in ceil(args[0]) }),
+        "sqrt": (1, { args in sqrt(args[0]) }),
+        "cbrt": (1, { args in cbrt(args[0]) }),
+        "abs": (1, { args in abs(args[0]) }),
+        "ceil": (1, { args in ceil(args[0]) }),
         "floor": (1, { args in floor(args[0]) }),
         "round": (1, { args in round(args[0]) }),
-        "sin":   (1, { args in sin(args[0]) }),
-        "cos":   (1, { args in cos(args[0]) }),
-        "tan":   (1, { args in tan(args[0]) }),
-        "asin":  (1, { args in asin(args[0]) }),
-        "acos":  (1, { args in acos(args[0]) }),
-        "atan":  (1, { args in atan(args[0]) }),
+        "sin": (1, { args in sin(args[0]) }),
+        "cos": (1, { args in cos(args[0]) }),
+        "tan": (1, { args in tan(args[0]) }),
+        "asin": (1, { args in asin(args[0]) }),
+        "acos": (1, { args in acos(args[0]) }),
+        "atan": (1, { args in atan(args[0]) }),
         "atan2": (2, { args in atan2(args[0], args[1]) }),
-        "log":   (1, { args in log(args[0]) }),
-        "log2":  (1, { args in log2(args[0]) }),
+        "log": (1, { args in log(args[0]) }),
+        "log2": (1, { args in log2(args[0]) }),
         "log10": (1, { args in log10(args[0]) }),
-        "exp":   (1, { args in exp(args[0]) }),
-        "pow":   (2, { args in pow(args[0], args[1]) }),
-        "min":   (nil, { args in args.min()! }),
-        "max":   (nil, { args in args.max()! }),
-        "hypot": (2, { args in hypot(args[0], args[1]) }),
+        "exp": (1, { args in exp(args[0]) }),
+        "pow": (2, { args in pow(args[0], args[1]) }),
+        "min": (nil, { args in args.min()! }),
+        "max": (nil, { args in args.max()! }),
+        "hypot": (2, { args in hypot(args[0], args[1]) })
     ]
 
     static let builtInFunctions: Set<String> = Set(builtIns.keys)
@@ -48,31 +47,31 @@ final class CalculatorEngine {
 
     private static let defaultVariables: [String: Double] = [
         // Mathematical constants
-        "pi":      Double.pi,
-        "π":       Double.pi,
-        "e":       M_E,
-        "phi":     1.6180339887498948482,
-        "φ":       1.6180339887498948482,
-        "sqrt2":   2.0.squareRoot(),
-        "sqrt3":   3.0.squareRoot(),
-        "ln2":     log(2.0),
-        "ln10":    log(10.0),
-        "log2e":   log2(M_E),
-        "log10e":  log10(M_E),
-        "tau":     2.0 * Double.pi,
-        "τ":       2.0 * Double.pi,
+        "pi": Double.pi,
+        "π": Double.pi,
+        "e": M_E,
+        "phi": 1.6180339887498948482,
+        "φ": 1.6180339887498948482,
+        "sqrt2": 2.0.squareRoot(),
+        "sqrt3": 3.0.squareRoot(),
+        "ln2": log(2.0),
+        "ln10": log(10.0),
+        "log2e": log2(M_E),
+        "log10e": log10(M_E),
+        "tau": 2.0 * Double.pi,
+        "τ": 2.0 * Double.pi,
         // Special floating-point values
-        "inf":     Double.infinity,
+        "inf": Double.infinity,
         "infinity": Double.infinity,
-        "nan":     Double.nan,
+        "nan": Double.nan,
         // Physical constants
-        "c":       299_792_458.0,       // speed of light (m/s)
-        "g":       9.80665,             // standard gravity (m/s²)
-        "G":       6.67430e-11,         // gravitational constant (m³·kg⁻¹·s⁻²)
-        "h":       6.62607015e-34,      // Planck constant (J·Hz⁻¹)
-        "k":       1.380649e-23,        // Boltzmann constant (J·K⁻¹)
-        "Na":      6.02214076e23,       // Avogadro's number (mol⁻¹)
-        "R":       8.314462618,         // ideal gas constant (J·mol⁻¹·K⁻¹)
+        "c": 299_792_458.0, // speed of light (m/s)
+        "g": 9.80665, // standard gravity (m/s²)
+        "G": 6.67430e-11, // gravitational constant (m³·kg⁻¹·s⁻²)
+        "h": 6.62607015e-34, // Planck constant (J·Hz⁻¹)
+        "k": 1.380649e-23, // Boltzmann constant (J·K⁻¹)
+        "Na": 6.02214076e23, // Avogadro's number (mol⁻¹)
+        "R": 8.314462618 // ideal gas constant (J·mol⁻¹·K⁻¹)
     ]
 
     /// Precompiled regex for matching function declaration headers like `add(a, b) {`.
@@ -80,6 +79,7 @@ final class CalculatorEngine {
     /// once per line per keystroke during both evaluation and syntax highlighting).
     private static let functionHeaderRegex: NSRegularExpression = {
         let pattern = #"^([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\s*\{$"#
+        // swiftlint:disable:next force_try
         return try! NSRegularExpression(pattern: pattern)
     }()
 
@@ -105,9 +105,9 @@ final class CalculatorEngine {
     @discardableResult
     func evaluate(lines: [String]) -> [String] {
         // Reset mutable state so the sheet text remains the sole source of truth.
-        self.functions = [:]
-        self.variables = Self.defaultVariables
-        self.recursionDepth = 0
+        functions = [:]
+        variables = Self.defaultVariables
+        recursionDepth = 0
 
         let annotated = collectFunctions(from: lines)
         var results: [String] = []
@@ -117,7 +117,7 @@ final class CalculatorEngine {
             case .functionLine:
                 results.append("")
 
-            case .evaluable(let raw):
+            case let .evaluable(raw):
                 let trimmed = raw.trimmingCharacters(in: .whitespaces)
                 guard !trimmed.isEmpty else {
                     results.append("")
@@ -130,7 +130,7 @@ final class CalculatorEngine {
                     results.append("")
                 } catch {
                     #if DEBUG
-                    print("Unexpected error during evaluation: \(error)")
+                        print("Unexpected error during evaluation: \(error)")
                     #endif
                     results.append("")
                 }
@@ -191,7 +191,8 @@ final class CalculatorEngine {
         let lineLength = (line as NSString).length
         guard let match = Self.functionHeaderRegex.firstMatch(in: line, range: NSRange(location: 0, length: lineLength)),
               let nameRange = Range(match.range(at: 1), in: line),
-              let paramsRange = Range(match.range(at: 2), in: line) else {
+              let paramsRange = Range(match.range(at: 2), in: line)
+        else {
             return nil
         }
         let name = String(line[nameRange])
@@ -232,12 +233,10 @@ final class CalculatorEngine {
         var i = line.startIndex
         while i < line.endIndex {
             let ch = line[i]
-            if ch == "(" { depth += 1 }
-            else if ch == ")" { depth -= 1 }
-            else if ch == "=" && depth == 0 {
+            if ch == "(" { depth += 1 } else if ch == ")" { depth -= 1 } else if ch == "=", depth == 0 {
                 let nextIdx = line.index(after: i)
                 let next: Character = nextIdx < line.endIndex ? line[nextIdx] : "\0"
-                if prev != "!" && prev != "<" && prev != ">" && prev != "=" && next != "=" {
+                if prev != "!", prev != "<", prev != ">", prev != "=", next != "=" {
                     return i
                 }
             }
@@ -274,7 +273,7 @@ final class CalculatorEngine {
     /// `localVars` shadows `variables`; identifiers are resolved in that order.
     func evaluateExpression(_ expr: String, localVars: [String: Double]) throws -> Double {
         let locatedTokens = try tokenizer.tokenize(expr)
-        let tokens = locatedTokens.map { $0.token }
+        let tokens = locatedTokens.map(\.token)
         var pos = 0
         let result = try parseAddSub(tokens: tokens, pos: &pos, localVars: localVars)
         if pos != tokens.count {
@@ -286,7 +285,7 @@ final class CalculatorEngine {
     private func parseAddSub(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var left = try parseMulDiv(tokens: tokens, pos: &pos, localVars: localVars)
         while pos < tokens.count {
-            if case .op(let op) = tokens[pos], op == .plus || op == .minus {
+            if case let .op(op) = tokens[pos], op == .plus || op == .minus {
                 pos += 1
                 let right = try parseMulDiv(tokens: tokens, pos: &pos, localVars: localVars)
                 left = op == .plus ? left + right : left - right
@@ -298,13 +297,13 @@ final class CalculatorEngine {
     private func parseMulDiv(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var left = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
         while pos < tokens.count {
-            if case .op(let op) = tokens[pos], op == .multiply || op == .divide || op == .percent {
+            if case let .op(op) = tokens[pos], op == .multiply || op == .divide || op == .percent {
                 pos += 1
                 let right = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
                 switch op {
-                case .multiply: left = left * right
-                case .divide:   left = left / right
-                case .percent:  left = left.truncatingRemainder(dividingBy: right)
+                case .multiply: left *= right
+                case .divide: left /= right
+                case .percent: left = left.truncatingRemainder(dividingBy: right)
                 default: break
                 }
             } else { break }
@@ -313,7 +312,7 @@ final class CalculatorEngine {
     }
 
     private func parseUnary(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
-        if pos < tokens.count, case .op(let op) = tokens[pos], op == .minus || op == .plus {
+        if pos < tokens.count, case let .op(op) = tokens[pos], op == .minus || op == .plus {
             pos += 1
             let val = try parsePower(tokens: tokens, pos: &pos, localVars: localVars)
             return op == .minus ? -val : val
@@ -323,7 +322,7 @@ final class CalculatorEngine {
 
     private func parsePower(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         let base = try parsePostfix(tokens: tokens, pos: &pos, localVars: localVars)
-        if pos < tokens.count, case .op(let op) = tokens[pos], op == .power {
+        if pos < tokens.count, case let .op(op) = tokens[pos], op == .power {
             pos += 1
             let exp = try parseUnary(tokens: tokens, pos: &pos, localVars: localVars)
             return pow(base, exp)
@@ -333,7 +332,7 @@ final class CalculatorEngine {
 
     private func parsePostfix(tokens: [Token], pos: inout Int, localVars: [String: Double]) throws -> Double {
         var val = try parsePrimary(tokens: tokens, pos: &pos, localVars: localVars)
-        while pos < tokens.count, case .op(let op) = tokens[pos], op == .percent {
+        while pos < tokens.count, case let .op(op) = tokens[pos], op == .percent {
             let nextPos = pos + 1
             // If the next token starts a new operand, this % is binary modulo —
             // leave it for parseMulDiv to handle.
@@ -345,7 +344,7 @@ final class CalculatorEngine {
                     break // operator, rparen, comma, or end → postfix percentage
                 }
             }
-            val = val / 100.0
+            val /= 100.0
             pos += 1
         }
         return val
@@ -355,11 +354,11 @@ final class CalculatorEngine {
         guard pos < tokens.count else { throw CalculatorError.unexpectedEndOfExpression }
 
         switch tokens[pos] {
-        case .number(let v):
+        case let .number(v):
             pos += 1
             return v
 
-        case .ident(let name):
+        case let .ident(name):
             pos += 1
             if pos < tokens.count, case .lparen = tokens[pos] {
                 pos += 1
@@ -367,10 +366,10 @@ final class CalculatorEngine {
                 if pos < tokens.count, case .rparen = tokens[pos] {
                     // empty arg list
                 } else {
-                    args.append(try parseAddSub(tokens: tokens, pos: &pos, localVars: localVars))
+                    try args.append(parseAddSub(tokens: tokens, pos: &pos, localVars: localVars))
                     while pos < tokens.count, case .comma = tokens[pos] {
                         pos += 1
-                        args.append(try parseAddSub(tokens: tokens, pos: &pos, localVars: localVars))
+                        try args.append(parseAddSub(tokens: tokens, pos: &pos, localVars: localVars))
                     }
                 }
                 guard pos < tokens.count, case .rparen = tokens[pos] else {
@@ -380,7 +379,7 @@ final class CalculatorEngine {
                 return try callFunction(name: name, args: args)
             }
             if let val = localVars[name] { return val }
-            if let val = variables[name]  { return val }
+            if let val = variables[name] { return val }
             throw CalculatorError.undefinedVariable(name)
 
         case .lparen:
@@ -460,5 +459,4 @@ final class CalculatorEngine {
     }
 
     // MARK: - Tokenizer
-
 }

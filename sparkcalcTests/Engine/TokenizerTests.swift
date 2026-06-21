@@ -1,25 +1,24 @@
-import Testing
 @testable import sparkcalc
+import Testing
 
 struct TokenizerTests {
-
     // MARK: - Basic Tokenization
 
     @Test func tokenizeNumberAndIdentifier() throws {
         let t = Tokenizer()
         let tokens = try t.tokenize("42 + abc")
         #expect(tokens.count == 3)
-        guard case .number(let v) = tokens[0].token else {
+        guard case let .number(v) = tokens[0].token else {
             Issue.record("Expected .number, got \(tokens[0].token)")
             return
         }
         #expect(v == 42)
-        guard case .op(let op) = tokens[1].token else {
+        guard case let .op(op) = tokens[1].token else {
             Issue.record("Expected .op, got \(tokens[1].token)")
             return
         }
         #expect(op == .plus)
-        guard case .ident(let s) = tokens[2].token else {
+        guard case let .ident(s) = tokens[2].token else {
             Issue.record("Expected .ident, got \(tokens[2].token)")
             return
         }
@@ -30,13 +29,23 @@ struct TokenizerTests {
         let t = Tokenizer()
         let tokens = try t.tokenize("(1, 2)")
         #expect(tokens.count == 5)
-        guard case .lparen = tokens[0].token else { Issue.record("Expected lparen"); return }
-        guard case .number(let v) = tokens[1].token else { Issue.record("Expected number"); return }
+        guard case .lparen = tokens[0].token else { Issue.record("Expected lparen")
+            return
+        }
+        guard case let .number(v) = tokens[1].token else { Issue.record("Expected number")
+            return
+        }
         #expect(v == 1)
-        guard case .comma = tokens[2].token else { Issue.record("Expected comma"); return }
-        guard case .number(let v) = tokens[3].token else { Issue.record("Expected number"); return }
+        guard case .comma = tokens[2].token else { Issue.record("Expected comma")
+            return
+        }
+        guard case let .number(v) = tokens[3].token else { Issue.record("Expected number")
+            return
+        }
         #expect(v == 2)
-        guard case .rparen = tokens[4].token else { Issue.record("Expected rparen"); return }
+        guard case .rparen = tokens[4].token else { Issue.record("Expected rparen")
+            return
+        }
     }
 
     // MARK: - Scientific Notation
@@ -46,7 +55,7 @@ struct TokenizerTests {
         let t = Tokenizer()
         let tokens = try t.tokenize(input)
         #expect(tokens.count == 1)
-        guard case .number(let v) = tokens[0].token else {
+        guard case let .number(v) = tokens[0].token else {
             Issue.record("Expected .number, got \(tokens[0].token)")
             return
         }
@@ -57,9 +66,13 @@ struct TokenizerTests {
         let t = Tokenizer()
         let tokens = try t.tokenize(".5 + .25")
         #expect(tokens.count == 3)
-        guard case .number(let v) = tokens[0].token else { Issue.record("Expected number"); return }
+        guard case let .number(v) = tokens[0].token else { Issue.record("Expected number")
+            return
+        }
         #expect(v == 0.5)
-        guard case .number(let v) = tokens[2].token else { Issue.record("Expected number"); return }
+        guard case let .number(v) = tokens[2].token else { Issue.record("Expected number")
+            return
+        }
         #expect(v == 0.25)
     }
 
@@ -69,9 +82,13 @@ struct TokenizerTests {
         let t = Tokenizer()
         let tokens = try t.tokenize("my.var + 5")
         #expect(tokens.count == 3)
-        guard case .ident(let s) = tokens[0].token else { Issue.record("Expected ident"); return }
+        guard case let .ident(s) = tokens[0].token else { Issue.record("Expected ident")
+            return
+        }
         #expect(s == "my.var")
-        guard case .number(let v) = tokens[2].token else { Issue.record("Expected number"); return }
+        guard case let .number(v) = tokens[2].token else { Issue.record("Expected number")
+            return
+        }
         #expect(v == 5)
     }
 
@@ -79,7 +96,9 @@ struct TokenizerTests {
         let t = Tokenizer()
         let tokens = try t.tokenize("my...var")
         #expect(tokens.count == 1)
-        guard case .ident(let s) = tokens[0].token else { Issue.record("Expected ident"); return }
+        guard case let .ident(s) = tokens[0].token else { Issue.record("Expected ident")
+            return
+        }
         #expect(s == "my...var")
     }
 
@@ -140,7 +159,7 @@ struct TokenizerTests {
 
     @Test(arguments: zip(
         ["abc", "_abc", "abc123", "123abc", "", "my.var", "my...var", "a.b.c", ".my", "my."],
-        [true,   true,    true,     false,    false, true,     true,        true,    false, true]
+        [true, true, true, false, false, true, true, true, false, true]
     ))
     func identifierValidation(_ input: String, expected: Bool) {
         let t = Tokenizer()
@@ -156,7 +175,7 @@ struct TokenizerTests {
 
     @Test(arguments: zip(
         [Token.number(5.0), Token.ident("x"), Token.op(.plus), Token.lparen, Token.rparen, Token.comma],
-        ["5.0",              "x",              "+",            "(",          ")",          ","]
+        ["5.0", "x", "+", "(", ")", ","]
     ))
     func tokenDescription(_ token: Token, expected: String) {
         #expect(token.description == expected)

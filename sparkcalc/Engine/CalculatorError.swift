@@ -19,16 +19,16 @@ enum CalculatorError: Error, LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .unexpectedToken(let t):    return "Unexpected token: '\(t)'"
-        case .unexpectedEndOfExpression: return "Unexpected end of expression"
-        case .missingClosingParen:       return "Missing closing parenthesis"
-        case .invalidNumber(let n):      return "Invalid number: '\(n)'"
-        case .unknownCharacter(let c):   return "Unknown character: '\(c)'"
-        case .undefinedVariable(let v):  return "Undefined variable: '\(v)'"
-        case .undefinedFunction(let f):  return "Undefined function: '\(f)'"
-        case .wrongArgCount(let f):      return "Wrong argument count for function: '\(f)'"
-        case .missingReturn:            return "Function did not return a value"
-        case .recursionLimitExceeded:   return "Recursion limit exceeded"
+        case let .unexpectedToken(t): "Unexpected token: '\(t)'"
+        case .unexpectedEndOfExpression: "Unexpected end of expression"
+        case .missingClosingParen: "Missing closing parenthesis"
+        case let .invalidNumber(n): "Invalid number: '\(n)'"
+        case let .unknownCharacter(c): "Unknown character: '\(c)'"
+        case let .undefinedVariable(v): "Undefined variable: '\(v)'"
+        case let .undefinedFunction(f): "Undefined function: '\(f)'"
+        case let .wrongArgCount(f): "Wrong argument count for function: '\(f)'"
+        case .missingReturn: "Function did not return a value"
+        case .recursionLimitExceeded: "Recursion limit exceeded"
         }
     }
 }

@@ -7,7 +7,7 @@ import Foundation
 /// Using an enum backed by `Character` instead of a raw `String` eliminates
 /// heap allocations for operator tokens and makes invalid operators
 /// unrepresentable at the type level.
-enum Operator: Character, Equatable, Hashable, Sendable {
+enum Operator: Character, Equatable, Hashable {
     case plus = "+"
     case minus = "-"
     case multiply = "*"
@@ -21,7 +21,7 @@ enum Operator: Character, Equatable, Hashable, Sendable {
 /// `Token` is the input vocabulary for the recursive-descent parser.
 /// Each case represents an atomic unit of an expression: numbers, identifiers,
 /// operators, and grouping punctuation.
-enum Token: CustomStringConvertible, Equatable, Hashable, Sendable {
+enum Token: CustomStringConvertible, Equatable, Hashable {
     case number(Double)
     case ident(String)
     case op(Operator)
@@ -31,12 +31,12 @@ enum Token: CustomStringConvertible, Equatable, Hashable, Sendable {
 
     var description: String {
         switch self {
-        case .number(let v): return "\(v)"
-        case .ident(let s): return s
-        case .op(let op):   return String(op.rawValue)
-        case .lparen:       return "("
-        case .rparen:       return ")"
-        case .comma:        return ","
+        case let .number(v): "\(v)"
+        case let .ident(s): s
+        case let .op(op): String(op.rawValue)
+        case .lparen: "("
+        case .rparen: ")"
+        case .comma: ","
         }
     }
 }
@@ -46,7 +46,7 @@ enum Token: CustomStringConvertible, Equatable, Hashable, Sendable {
 /// `range` is relative to the string that was tokenized, not the full document.
 /// This allows the syntax highlighter to map tokens back to exact character
 /// positions when applying color attributes.
-struct LocatedToken: Sendable {
+struct LocatedToken {
     let token: Token
     let range: Range<String.Index>
 }

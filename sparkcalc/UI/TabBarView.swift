@@ -124,7 +124,6 @@ struct TabBarView: View {
 
     // MARK: - Scroll Chevron
 
-    @ViewBuilder
     private func scrollChevron(direction: ChevronDirection, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
@@ -155,9 +154,9 @@ struct TabBarView: View {
     private func scrollToNext(using proxy: ScrollViewProxy) {
         guard scrollContainerWidth > 0,
               let target = store.sheets.first(where: { tab in
-            guard let frame = tabFrames[tab.id] else { return false }
-            return frame.minX >= scrollContainerWidth
-        }) else { return }
+                  guard let frame = tabFrames[tab.id] else { return false }
+                  return frame.minX >= scrollContainerWidth
+              }) else { return }
         withAnimation(.easeOut(duration: 0.2)) {
             proxy.scrollTo(target.id, anchor: .trailing)
         }
@@ -247,7 +246,7 @@ struct TabBarView: View {
             }
         }
         .overlay(alignment: .trailing) {
-            if dropTargetIndex == store.sheets.count && isLast {
+            if dropTargetIndex == store.sheets.count, isLast {
                 indicatorLine
             }
         }
@@ -283,7 +282,6 @@ struct TabBarView: View {
             .clipShape(RoundedRectangle(cornerRadius: 1))
     }
 
-    @ViewBuilder
     private func renameField(for sheet: Sheet) -> some View {
         TextField("Sheet name", text: $renameText, onCommit: {
             store.renameSheet(id: sheet.id, to: renameText)
@@ -305,7 +303,10 @@ struct TabBarView: View {
 // MARK: - Tab Frame Tracking
 
 private struct TabFramePreferenceKey: PreferenceKey {
-    static var defaultValue: [UUID: CGRect] { [:] }
+    static var defaultValue: [UUID: CGRect] {
+        [:]
+    }
+
     static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
         value.merge(nextValue()) { _, new in new }
     }
@@ -322,15 +323,15 @@ private struct TabDropDelegate: DropDelegate {
         info.hasItemsConforming(to: [UTType.plainText.identifier])
     }
 
-    func dropEntered(info: DropInfo) {
+    func dropEntered(info _: DropInfo) {
         dropTargetIndex = targetIndex
     }
 
-    func dropUpdated(info: DropInfo) -> DropProposal? {
+    func dropUpdated(info _: DropInfo) -> DropProposal? {
         DropProposal(operation: .move)
     }
 
-    func dropExited(info: DropInfo) {
+    func dropExited(info _: DropInfo) {
         if dropTargetIndex == targetIndex {
             dropTargetIndex = nil
         }
@@ -359,7 +360,7 @@ private struct TabDropDelegate: DropDelegate {
 
 private extension View {
     func onDoubleClick(perform action: @escaping () -> Void) -> some View {
-        self.simultaneousGesture(
+        simultaneousGesture(
             TapGesture(count: 2)
                 .onEnded { _ in action() }
         )

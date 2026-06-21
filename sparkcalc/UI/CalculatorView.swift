@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Main View
 
@@ -39,7 +39,6 @@ struct CalculatorView: View {
 
             ScrollView {
                 HStack(alignment: .top, spacing: 0) {
-
                     // ── Left: expanding text editor ──────────────────────
                     VStack(spacing: 0) {
                         ExpandingTextEditor(
@@ -194,7 +193,9 @@ private struct AnswerLineView: View {
     @State private var isHovered = false
     @State private var isFlashing = false
 
-    private var isCopyable: Bool { !answer.isEmpty }
+    private var isCopyable: Bool {
+        !answer.isEmpty
+    }
 
     var body: some View {
         HStack {
@@ -218,7 +219,7 @@ private struct AnswerLineView: View {
                 }
                 .onHover { hovering in
                     isHovered = hovering
-                    if hovering && isCopyable {
+                    if hovering, isCopyable {
                         NSCursor.pointingHand.push()
                     } else {
                         NSCursor.pop()

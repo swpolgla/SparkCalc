@@ -1,13 +1,12 @@
-import Testing
 @testable import sparkcalc
+import Testing
 
 struct CalculatorEngineTests {
-
     // MARK: - Basic Arithmetic
 
     @Test(arguments: zip(
         ["1 + 1", "5 - 3", "3 * 4", "10 / 4", "1 + 2 * 3", "(1 + 2) * 3"],
-        ["2",      "2",     "12",    "2.5",    "7",          "9"]
+        ["2", "2", "12", "2.5", "7", "9"]
     ))
     func basicArithmetic(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -133,7 +132,7 @@ struct CalculatorEngineTests {
         _ = engine.evaluate(lines: [
             "f() {",
             "    return f()",
-            "}",
+            "}"
         ])
         #expect(throws: CalculatorError.recursionLimitExceeded) {
             try engine.evaluateExpression("f()", localVars: [:])
@@ -147,7 +146,7 @@ struct CalculatorEngineTests {
             "count(n) {",
             "    if n <= 0 { return 0 }",
             "    return 1 + count(n - 1)",
-            "}",
+            "}"
         ])
         // The engine does NOT support if-statements, so this function definition
         // will be registered but calling it will error on the if-line.
@@ -212,7 +211,7 @@ struct CalculatorEngineTests {
 
     @Test(arguments: zip(
         ["sin(0)", "cos(0)", "tan(0)", "asin(0)", "acos(1)", "atan(0)", "atan2(0, 1)"],
-        ["0",       "1",       "0",       "0",        "0",        "0",       "0"]
+        ["0", "1", "0", "0", "0", "0", "0"]
     ))
     func trigFunctions(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -221,7 +220,7 @@ struct CalculatorEngineTests {
 
     @Test(arguments: zip(
         ["log(1)", "log2(8)", "log10(100)", "exp(0)", "log(0)", "log(-1)"],
-        ["0",       "3",        "2",          "1",       "-∞",     "NaN"]
+        ["0", "3", "2", "1", "-∞", "NaN"]
     ))
     func logAndExpFunctions(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -230,7 +229,7 @@ struct CalculatorEngineTests {
 
     @Test(arguments: zip(
         ["pow(2, 3)", "pow(2, -1)", "cbrt(27)", "cbrt(-8)"],
-        ["8",          "0.5",         "3",        "-2"]
+        ["8", "0.5", "3", "-2"]
     ))
     func powerFunctions(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -239,7 +238,7 @@ struct CalculatorEngineTests {
 
     @Test(arguments: zip(
         ["ceil(2.1)", "floor(2.9)", "round(2.5)"],
-        ["3",          "2",           "3"]
+        ["3", "2", "3"]
     ))
     func roundingFunctions(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -248,7 +247,7 @@ struct CalculatorEngineTests {
 
     @Test(arguments: zip(
         ["abs(-5)", "min(3, 7, 2)", "max(3, 7, 2)", "hypot(3, 4)"],
-        ["5",        "2",             "7",             "5"]
+        ["5", "2", "7", "5"]
     ))
     func aggregationFunctions(_ input: String, expected: String) {
         let engine = CalculatorEngine()
@@ -350,7 +349,7 @@ struct CalculatorEngineTests {
             CalculatorError.missingClosingParen,
             CalculatorError.invalidNumber("1e"),
             CalculatorError.unknownCharacter("$"),
-            CalculatorError.unexpectedToken("+"),
+            CalculatorError.unexpectedToken("+")
         ],
         [
             "Undefined variable: 'x'",
@@ -362,7 +361,7 @@ struct CalculatorEngineTests {
             "Missing closing parenthesis",
             "Invalid number: '1e'",
             "Unknown character: '$'",
-            "Unexpected token: '+'",
+            "Unexpected token: '+'"
         ]
     ))
     func errorDescription(_ error: CalculatorError, expected: String) {
@@ -696,9 +695,9 @@ struct CalculatorEngineTests {
         // A lone "=" has no variable name on the left, but findTopLevelAssignment
         // only looks for the = character itself — it returns the index of =.
         // The caller is responsible for checking the left side is a valid identifier.
-        #expect(engine.findTopLevelAssignment(in: "=") != nil)    // lone equals returns the = index
-        #expect(engine.findTopLevelAssignment(in: "") == nil)     // empty string
-        #expect(engine.findTopLevelAssignment(in: "a=b") != nil)  // no spaces — valid assignment
+        #expect(engine.findTopLevelAssignment(in: "=") != nil) // lone equals returns the = index
+        #expect(engine.findTopLevelAssignment(in: "") == nil) // empty string
+        #expect(engine.findTopLevelAssignment(in: "a=b") != nil) // no spaces — valid assignment
     }
 
     @Test func functionReadsGlobalVariable() {

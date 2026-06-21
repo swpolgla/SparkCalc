@@ -1,9 +1,8 @@
 import Foundation
-import Testing
 @testable import sparkcalc
+import Testing
 
 struct SheetStoreTests {
-
     @Test func initialState() {
         let store = SheetStore()
         #expect(store.sheets.count == 1)
@@ -148,10 +147,10 @@ struct SheetStoreTests {
         #expect(store.sheets.contains(where: { $0.id == store.activeSheetId }))
     }
 
-    @Test func activeSheetIdRemainsValidAfterMove() {
+    @Test func activeSheetIdRemainsValidAfterMove() throws {
         let store = SheetStore()
         store.addSheet()
-        let activeId = store.activeSheetId!
+        let activeId = try #require(store.activeSheetId)
         let firstId = store.sheets[0].id
         store.moveSheet(id: firstId, to: 0)
         #expect(store.activeSheetId == activeId)
@@ -199,21 +198,21 @@ struct SheetStoreTests {
     @Test func moveSheetNoOpWhenFromEqualsTo() {
         let store = SheetStore()
         store.addSheet()
-        let originalOrder = store.sheets.map { $0.id }
+        let originalOrder = store.sheets.map(\.id)
         let firstId = store.sheets[0].id
         store.moveSheet(id: firstId, to: 0)
-        #expect(store.sheets.map { $0.id } == originalOrder)
+        #expect(store.sheets.map(\.id) == originalOrder)
     }
 
     @Test func moveSheetNoOpWhenOutOfBounds() {
         let store = SheetStore()
         store.addSheet()
-        let originalOrder = store.sheets.map { $0.id }
+        let originalOrder = store.sheets.map(\.id)
         let firstId = store.sheets[0].id
         store.moveSheet(id: UUID(), to: 0)
         store.moveSheet(id: firstId, to: -1)
         store.moveSheet(id: firstId, to: 10)
-        #expect(store.sheets.map { $0.id } == originalOrder)
+        #expect(store.sheets.map(\.id) == originalOrder)
     }
 
     @Test func moveSheetBackwards() {

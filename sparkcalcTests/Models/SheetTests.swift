@@ -1,9 +1,8 @@
 import Foundation
-import Testing
 @testable import sparkcalc
+import Testing
 
 struct SheetTests {
-
     // MARK: - Initialization
 
     @Test func initialDefaults() {
@@ -63,9 +62,9 @@ struct SheetTests {
         sheet.inputText = "f(a, b) {\n  return a + b\n}\nf(1, 2)"
         sheet.updateAnswers()
         #expect(sheet.answers.count == 4)
-        #expect(sheet.answers[0] == "")  // function header
-        #expect(sheet.answers[1] == "")  // function body
-        #expect(sheet.answers[2] == "")  // function close
+        #expect(sheet.answers[0] == "") // function header
+        #expect(sheet.answers[1] == "") // function body
+        #expect(sheet.answers[2] == "") // function close
         #expect(sheet.answers[3] == "3") // function call
     }
 

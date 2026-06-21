@@ -32,8 +32,8 @@ class Sheet: Identifiable {
         self.id = id
         self.name = name
         let freshEngine = CalculatorEngine()
-        self.engine = freshEngine
-        self.highlighter = SyntaxHighlighter(engine: freshEngine)
+        engine = freshEngine
+        highlighter = SyntaxHighlighter(engine: freshEngine)
     }
 
     /// Evaluates the current input text and publishes the results.

@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Growing NSTextView subclass
 
@@ -26,13 +26,15 @@ class GrowingTextView: NSTextView {
            text == ". ",
            let event = NSApp.currentEvent,
            event.type == .keyDown,
-           event.characters == " " {
+           event.characters == " "
+        {
             let fullString = self.string as NSString
             let loc = replacementRange.location
             let len = replacementRange.length
             if len == 1,
                loc < fullString.length,
-               fullString.character(at: loc) == unichar((" " as UnicodeScalar).value) {
+               fullString.character(at: loc) == unichar((" " as UnicodeScalar).value)
+            {
                 // System is replacing the previous space with ". " — keep both spaces.
                 super.insertText("  ", replacementRange: replacementRange)
             } else {
@@ -53,12 +55,12 @@ class GrowingTextView: NSTextView {
     }
 
     /// Intercept undo from the responder chain and route to the sheet's manager.
-    @objc func undo(_ sender: Any?) {
+    @objc func undo(_: Any?) {
         sheetUndoManager?.undo()
     }
 
     /// Intercept redo from the responder chain and route to the sheet's manager.
-    @objc func redo(_ sender: Any?) {
+    @objc func redo(_: Any?) {
         sheetUndoManager?.redo()
     }
 
@@ -66,17 +68,18 @@ class GrowingTextView: NSTextView {
     override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(undo(_:)):
-            return sheetUndoManager?.canUndo ?? false
+            sheetUndoManager?.canUndo ?? false
         case #selector(redo(_:)):
-            return sheetUndoManager?.canRedo ?? false
+            sheetUndoManager?.canRedo ?? false
         default:
-            return super.validateMenuItem(menuItem)
+            super.validateMenuItem(menuItem)
         }
     }
 
     override var intrinsicContentSize: NSSize {
         guard let container = textContainer,
-              let manager = layoutManager else {
+              let manager = layoutManager
+        else {
             return super.intrinsicContentSize
         }
         manager.ensureLayout(for: container)
@@ -107,7 +110,9 @@ struct ExpandingTextEditor: NSViewRepresentable {
     var onSetup: (GrowingTextView) -> Void
     @Environment(ThemeSettings.self) private var themeSettings
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
 
     func makeNSView(context: Context) -> GrowingTextView {
         let textView = GrowingTextView()
@@ -176,7 +181,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
             nsView.invalidateIntrinsicContentSize()
             DispatchQueue.main.async {
                 if let ts = nsView.textStorage {
-                    self.syntaxHighlighter.forceFullHighlight(on: ts)
+                    syntaxHighlighter.forceFullHighlight(on: ts)
                 }
             }
         }
@@ -196,7 +201,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_ nsView: GrowingTextView, coordinator: Coordinator) {
+    static func dismantleNSView(_ nsView: GrowingTextView, coordinator _: Coordinator) {
         // Per Apple docs: "Cleans up the presented AppKit view (and coordinator)
         // in anticipation of their removal." Remove all undo actions targeting
         // this text view so dangling targets don't remain in the undo manager
@@ -242,13 +247,16 @@ struct ExpandingTextEditor: NSViewRepresentable {
         var parent: ExpandingTextEditor
         weak var textView: GrowingTextView?
 
-        init(_ parent: ExpandingTextEditor) { self.parent = parent }
+        init(_ parent: ExpandingTextEditor) {
+            self.parent = parent
+        }
 
         private var lastEditWasAtomic = false
 
-        func textView(_ textView: NSTextView,
+        func textView(_: NSTextView,
                       shouldChangeTextIn affectedCharRange: NSRange,
-                      replacementString: String?) -> Bool {
+                      replacementString: String?) -> Bool
+        {
             let isInsert = (replacementString?.count == 1 && affectedCharRange.length == 0)
             let isDelete = (replacementString?.isEmpty == true && affectedCharRange.length == 1)
             lastEditWasAtomic = isInsert || isDelete
@@ -267,9 +275,10 @@ struct ExpandingTextEditor: NSViewRepresentable {
             }
         }
 
-        func layoutManager(_ layoutManager: NSLayoutManager,
-                           didCompleteLayoutFor textContainer: NSTextContainer?,
-                           atEnd layoutFinishedFlag: Bool) {
+        func layoutManager(_: NSLayoutManager,
+                           didCompleteLayoutFor _: NSTextContainer?,
+                           atEnd layoutFinishedFlag: Bool)
+        {
             guard layoutFinishedFlag, let tv = textView else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.updateLineHeights(for: tv)

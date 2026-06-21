@@ -1,6 +1,6 @@
-import SwiftUI
-import Observation
 import AppKit
+import Observation
+import SwiftUI
 
 /// Observable settings object that owns the live syntax theme.
 ///
@@ -31,7 +31,7 @@ class ThemeSettings {
         PresetColor(name: "Indigo", color: .systemIndigo),
         PresetColor(name: "Purple", color: .systemPurple),
         PresetColor(name: "Pink", color: .systemPink),
-        PresetColor(name: "Brown", color: .systemBrown),
+        PresetColor(name: "Brown", color: .systemBrown)
     ]
 
     struct PresetColor: Identifiable, Hashable {

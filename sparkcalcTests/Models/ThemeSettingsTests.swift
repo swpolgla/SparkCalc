@@ -1,9 +1,8 @@
-import Testing
-import SwiftUI
 @testable import sparkcalc
+import SwiftUI
+import Testing
 
 struct ThemeSettingsTests {
-
     // MARK: - Initial Defaults
 
     @Test func initialDefaults() {

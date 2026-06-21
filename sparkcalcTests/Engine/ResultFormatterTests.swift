@@ -1,8 +1,7 @@
-import Testing
 @testable import sparkcalc
+import Testing
 
 struct ResultFormatterTests {
-
     // MARK: - Integer Formatting
 
     @Test func integer() {

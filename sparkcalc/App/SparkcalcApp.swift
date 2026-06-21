@@ -54,10 +54,10 @@ struct SparkcalcApp: App {
         }
 
         #if os(macOS)
-        Settings {
-            SettingsView()
-                .environment(themeSettings)
-        }
+            Settings {
+                SettingsView()
+                    .environment(themeSettings)
+            }
         #endif
     }
 }

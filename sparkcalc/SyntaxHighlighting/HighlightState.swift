@@ -6,8 +6,8 @@
 /// `functionHeader` and `functionBody` carry the owning function's name so that
 /// parameter and local-variable scoping can be resolved.
 enum LineKind: Equatable {
-    case functionHeader(String)   // associated value is function name
-    case functionBody(String)     // associated value is owning function name
+    case functionHeader(String) // associated value is function name
+    case functionBody(String) // associated value is owning function name
     case functionClose
     case evaluable
 }

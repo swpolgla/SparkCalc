@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Settings View
 
@@ -116,7 +116,7 @@ struct NSColorWellView: NSViewRepresentable {
         return well
     }
 
-    func updateNSView(_ nsView: NSColorWell, context: Context) {
+    func updateNSView(_ nsView: NSColorWell, context _: Context) {
         nsView.color = color
     }
 
@@ -126,7 +126,10 @@ struct NSColorWellView: NSViewRepresentable {
 
     class Coordinator: NSObject {
         let parent: NSColorWellView
-        init(_ parent: NSColorWellView) { self.parent = parent }
+        init(_ parent: NSColorWellView) {
+            self.parent = parent
+        }
+
         @objc func colorChanged(_ sender: NSColorWell) {
             parent.color = sender.color
         }
