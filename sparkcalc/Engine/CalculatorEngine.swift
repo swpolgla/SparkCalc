@@ -94,6 +94,14 @@ final class CalculatorEngine {
     private static let maxRecursionDepth = 256
     private let tokenizer = Tokenizer()
 
+    /// Memoization cache for `evaluate(lines:)`. `Sheet.updateAnswers()` and
+    /// `SyntaxHighlighter.performHighlighting` both invoke it with identical
+    /// lines per keystroke; the second call short-circuits to cached results,
+    /// avoiding a redundant full parse. Safe because evaluation is deterministic
+    /// and state is fully rebuilt on every cache miss.
+    private var lastEvaluatedLines: [String]?
+    private var lastResults: [String]?
+
     /// Evaluates every line of the sheet and returns a formatted answer for each.
     ///
     /// This is a two-pass process:
@@ -104,6 +112,10 @@ final class CalculatorEngine {
     /// Blank lines, function definitions, and lines that throw errors produce `""`.
     @discardableResult
     func evaluate(lines: [String]) -> [String] {
+        if let cached = lastEvaluatedLines, cached == lines, let results = lastResults {
+            return results
+        }
+
         // Reset mutable state so the sheet text remains the sole source of truth.
         functions = [:]
         variables = Self.defaultVariables
@@ -136,6 +148,8 @@ final class CalculatorEngine {
                 }
             }
         }
+        lastEvaluatedLines = lines
+        lastResults = results
         return results
     }
 
