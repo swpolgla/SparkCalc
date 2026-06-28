@@ -27,13 +27,8 @@ class GrowingTextView: NSTextView {
     var isUpdatingAutocompleteGhost = false
     fileprivate var activeAutocompleteSelection: NSRange?
     fileprivate var activeAutocompleteRange: NSRange?
-    /// Set `true` by `textView(_:shouldChangeTextIn:replacementString:)` when an
-    /// incoming text edit touches the active ghost-completion range. Mutating
-    /// the ghost range via the user keystroke invalidates it: `discardAutocomplete`
-    /// checks this flag and skips deletion so the user's typed content survives.
-    /// Without this, typing the same letter as the trailing ghost (e.g. ghost
-    /// "l", user presses "l") would still pass a substring-equality check and
-    /// wrongly delete the user's text.
+    /// `true` once an incoming edit touched the active ghost range. `discardAutocomplete`
+    /// then skips deletion so the user's typed content survives the keystroke.
     var ghostEditConsumed = false
     private lazy var autocompletePopup = AutocompletePopupController { [weak self] suggestion in
         self?.acceptAutocomplete(suggestion)
@@ -77,8 +72,6 @@ class GrowingTextView: NSTextView {
         activeAutocompleteSelection = flag ? nil : selectedRange()
         activeAutocompleteRange = flag ? nil : charRange
 
-        // A freshly installed ghost has not yet been touched by an edit; reset
-        // the consumption flag so subsequent typing can mark it consumed.
         if !flag {
             ghostEditConsumed = false
         }
@@ -166,13 +159,9 @@ class GrowingTextView: NSTextView {
         let consumed = ghostEditConsumed
         let selection = selectedRange()
         closeAutocomplete()
-        // Skip deletion if an edit already touched the ghost range. The user
-        // typed through (or into) the suggestion: the range now holds user
-        // content that must be preserved. Deletion when `consumed` is true
-        // would also re-enter NSTextStorage's endEditing pipeline (the crash
-        // root cause: NSRangeException from ensureLayout) — so do nothing.
-        // When `consumed` is false, only the selection moved (without an
-        // edit), so the ghost text is genuinely unwritten and must be removed.
+        // If the user already typed through the ghost, the captured range holds
+        // user content — do not delete it. (Deleted only when the selection
+        // moved without an edit, leaving the ghost text genuinely unwritten.)
         guard !consumed,
               ghostRange.length > 0,
               NSMaxRange(ghostRange) <= (string as NSString).length,
@@ -201,11 +190,10 @@ class GrowingTextView: NSTextView {
               let activeAutocompleteSelection,
               selectedRange() != activeAutocompleteSelection
         else { return }
-        // Defer: textViewDidChangeSelection fires synchronously inside
-        // NSTextStorage endEditing / NSLayoutManager textStorage:edited:.
-        // Mutating text storage here re-enters that pipeline and corrupts the
-        // layout manager's in-flight glyph update, raising NSRangeException
-        // ("Range out of bounds; string length N") from ensureLayout.
+        // Defer: textViewDidChangeSelection fires synchronously inside NSTextStorage
+        // endEditing. Mutating storage here re-enters AppKit's edit pipeline and
+        // corrupts the layout manager's in-flight glyph update, raising
+        // NSRangeException from ensureLayout.
         let snapshot = activeAutocompleteSelection
         DispatchQueue.main.async { [weak self] in
             guard let self,
@@ -239,9 +227,7 @@ class GrowingTextView: NSTextView {
             return false
         }
 
-        // Bounds guard: if the storage shrank (e.g. external edit), the stale
-        // selection range may extend past the current end. Clear state without
-        // mutating storage rather than triggering an NSRangeException.
+        // Stale selection after a shrinking edit would raise NSRangeException.
         guard NSMaxRange(activeAutocompleteSelection) <= (string as NSString).length else {
             self.activeAutocompleteSelection = nil
             activeAutocompleteRange = nil
@@ -535,11 +521,8 @@ struct ExpandingTextEditor: NSViewRepresentable {
             lastEditWasAtomic = isInsert || isDelete
             lastEditWasDeletion = isDelete
 
-            // Mark the active ghost as consumed when an incoming edit touches its
-            // selected range. Subsequent `discardAutocomplete` (fired from
-            // textViewDidChangeSelection, synchronously inside NSTextStorage's
-            // endEditing pipeline) will then skip the deletion that previously
-            // crashed the layout manager and corrupted user-typed content.
+            // Mark the ghost consumed when an edit touches its range so the deferred
+            // discardAutocomplete skips deleting user-typed content.
             if let gt = textView as? GrowingTextView,
                let ghostRange = gt.activeAutocompleteSelection,
                NSIntersectionRange(ghostRange, affectedCharRange).length > 0

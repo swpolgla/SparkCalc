@@ -26,13 +26,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     private var previousState: HighlightState?
     private var isHighlighting = false
 
-    /// Range of the most recent character edit, captured from
-    /// `textStorage(_:didProcessEditing:range:changeInLength:)`. The incremental
-    /// pass uses this when string content is unchanged between runs: an
-    /// identical-content replacement (e.g. typing through an autocomplete
-    /// ghost, or Tab-accepting a suggestion) resets attributes on the edited
-    /// range to typing defaults, so the affected line(s) must be re-colored
-    /// even though `lines[i] == prev.lines[i]`.
+    /// Most recent character-edit range, used when an edit resets attributes without changing text.
     private var lastEditedRange: NSRange?
 
     init(engine: CalculatorEngine) {
@@ -87,10 +81,6 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         // Prevent re-entrant highlighting.
         guard !isHighlighting else { return }
 
-        // Capture the edited range so performHighlighting can re-color the
-        // touched line even when the net string content is unchanged (which
-        // happens when autocomplete finalizes by replacing a ghost range with
-        // identical text — attributes are reset but lines compare equal).
         lastEditedRange = range
 
         // Defer highlighting to avoid modifying textStorage during this callback.
@@ -119,9 +109,6 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         let fullString = textStorage.string
         let lines = fullString.components(separatedBy: "\n")
 
-        // Capture-and-clear: any fallback dirty-detection driven by the edited
-        // range applies only to this highlight pass. Clearing here also covers
-        // the early-return paths (stability / no-op) below.
         let editedRangeForThisPass = lastEditedRange
         lastEditedRange = nil
 
@@ -153,11 +140,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 }
             }
 
-            // Fallback: when no line content changed but an edit still
-            // occurred (identical-content replacement), the edited range's
-            // attributes were reset to typing defaults. Force the touched
-            // line(s) dirty so they get re-colored. This is the path taken
-            // when autocomplete finalizes (type-through or Tab-accept).
+            // Identical-content replacement can reset attributes without changing lines.
             if firstDirty == nil, let editedRange = editedRangeForThisPass, editedRange.length > 0 {
                 let nsFull = fullString as NSString
                 let editLocation = min(editedRange.location, nsFull.length)
