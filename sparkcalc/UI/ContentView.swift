@@ -17,6 +17,7 @@ struct ContentView: View {
                     CalculatorView(sheet: sheet, isActive: isActive)
                         .opacity(isActive ? 1 : 0)
                         .allowsHitTesting(isActive)
+                        .accessibilityHidden(!isActive)
                 }
             }
 

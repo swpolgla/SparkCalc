@@ -34,7 +34,7 @@ struct SparkcalcApp: App {
 
                 Button("Close Sheet") {
                     if let id = store.activeSheetId {
-                        store.removeSheet(id: id)
+                        store.requestCloseSheet(id: id)
                     }
                 }
                 .keyboardShortcut("w", modifiers: [.command, .shift])

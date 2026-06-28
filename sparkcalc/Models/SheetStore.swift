@@ -10,6 +10,7 @@ class SheetStore {
     var sheets: [Sheet] = []
     var activeSheetId: UUID?
     var defaultAnswerColumnFraction: CGFloat = 0.25
+    var sheetPendingDeletionId: UUID?
 
     private var nextSheetNumber = 1
 
@@ -31,6 +32,8 @@ class SheetStore {
     }
 
     func removeSheet(id: UUID) {
+        guard let index = sheets.firstIndex(where: { $0.id == id }) else { return }
+
         guard sheets.count > 1 else {
             // Replace the last sheet with a fresh blank one rather than leaving zero sheets.
             let replacement = makeSheet()
@@ -39,14 +42,31 @@ class SheetStore {
             return
         }
 
-        if let index = sheets.firstIndex(where: { $0.id == id }) {
-            sheets.remove(at: index)
-            if activeSheetId == id {
-                // Activate the sheet that is now at the same index, or the last one.
-                let newIndex = min(index, sheets.count - 1)
-                activeSheetId = sheets[newIndex].id
-            }
+        sheets.remove(at: index)
+        if activeSheetId == id {
+            // Activate the sheet that is now at the same index, or the last one.
+            let newIndex = min(index, sheets.count - 1)
+            activeSheetId = sheets[newIndex].id
         }
+    }
+
+    func requestCloseSheet(id: UUID) {
+        guard let sheet = sheets.first(where: { $0.id == id }) else { return }
+        if sheet.inputText.isEmpty {
+            removeSheet(id: id)
+        } else {
+            sheetPendingDeletionId = id
+        }
+    }
+
+    func confirmPendingSheetDeletion() {
+        guard let id = sheetPendingDeletionId else { return }
+        sheetPendingDeletionId = nil
+        removeSheet(id: id)
+    }
+
+    func cancelPendingSheetDeletion() {
+        sheetPendingDeletionId = nil
     }
 
     func activateSheet(id: UUID) {
@@ -72,7 +92,9 @@ class SheetStore {
 
     func renameSheet(id: UUID, to newName: String) {
         guard let index = sheets.firstIndex(where: { $0.id == id }) else { return }
-        sheets[index].name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        sheets[index].name = trimmedName
     }
 
     /// Moves the sheet with the given ID to the specified destination index.
@@ -84,7 +106,8 @@ class SheetStore {
         guard let fromIndex = sheets.firstIndex(where: { $0.id == id }),
               destinationIndex >= 0, destinationIndex <= sheets.count else { return }
         let sheet = sheets.remove(at: fromIndex)
-        let target = min(destinationIndex, sheets.count)
+        let adjustedDestination = destinationIndex > fromIndex ? destinationIndex - 1 : destinationIndex
+        let target = min(adjustedDestination, sheets.count)
         sheets.insert(sheet, at: target)
     }
 
