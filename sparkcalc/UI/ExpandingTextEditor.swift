@@ -441,14 +441,21 @@ struct ExpandingTextEditor: NSViewRepresentable {
             textView.textStorage?.replaceCharacters(in: fullRange, with: newText)
             textView.didChangeText()
         } else {
-            // Not undoable (load): disable undo registration and clear undo stack
-            if let um = textView.undoManager {
-                um.disableUndoRegistration()
-                defer { um.enableUndoRegistration() }
-                um.removeAllActions()
-            }
+            // Not undoable (load): clear the undo stack, then perform the
+            // replacement with undo registration disabled so no undo step is
+            // registered. removeAllActions() must run *before* disabling
+            // registration — it interacts with the registration-disable counter
+            // and would otherwise leave that counter at 0, causing the matching
+            // enableUndoRegistration() below to throw an
+            // NSInternalInconsistencyException. The disable/enable window must
+            // actually wrap the text mutation (a defer scoped to the inner `if`
+            // block fires at the end of that block, before the mutation).
+            let um = textView.undoManager
+            um?.removeAllActions()
+            um?.disableUndoRegistration()
             textView.textStorage?.replaceCharacters(in: fullRange, with: newText)
             textView.didChangeText()
+            um?.enableUndoRegistration()
         }
 
         // Re-highlight after programmatic change

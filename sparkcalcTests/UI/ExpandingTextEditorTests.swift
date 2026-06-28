@@ -2,6 +2,7 @@ import AppKit
 @testable import sparkcalc
 import Testing
 
+@MainActor
 struct ExpandingTextEditorTests {
     @Test func programmaticTextReplacementUpdatesEditorAndClearsUndoHistory() {
         let textView = GrowingTextView()
