@@ -26,6 +26,15 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     private var previousState: HighlightState?
     private var isHighlighting = false
 
+    /// Range of the most recent character edit, captured from
+    /// `textStorage(_:didProcessEditing:range:changeInLength:)`. The incremental
+    /// pass uses this when string content is unchanged between runs: an
+    /// identical-content replacement (e.g. typing through an autocomplete
+    /// ghost, or Tab-accepting a suggestion) resets attributes on the edited
+    /// range to typing defaults, so the affected line(s) must be re-colored
+    /// even though `lines[i] == prev.lines[i]`.
+    private var lastEditedRange: NSRange?
+
     init(engine: CalculatorEngine) {
         self.engine = engine
         super.init()
@@ -70,13 +79,19 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     func textStorage(
         _ textStorage: NSTextStorage,
         didProcessEditing editedMask: NSTextStorageEditActions,
-        range _: NSRange,
+        range: NSRange,
         changeInLength _: Int
     ) {
         // Only respond to edits that changed characters, not just attributes.
         guard editedMask.contains(.editedCharacters) else { return }
         // Prevent re-entrant highlighting.
         guard !isHighlighting else { return }
+
+        // Capture the edited range so performHighlighting can re-color the
+        // touched line even when the net string content is unchanged (which
+        // happens when autocomplete finalizes by replacing a ghost range with
+        // identical text — attributes are reset but lines compare equal).
+        lastEditedRange = range
 
         // Defer highlighting to avoid modifying textStorage during this callback.
         DispatchQueue.main.async { [weak self] in
@@ -96,13 +111,19 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
     /// function names are unchanged, it finds the first dirty line and reuses the
     /// cached variable set up to that point. Re-highlighting stops early if the
     /// variable state stabilizes (no new assignments) before the end of the document.
-    private func performHighlighting(on textStorage: NSTextStorage) {
+    func performHighlighting(on textStorage: NSTextStorage) {
         guard !isHighlighting else { return }
         isHighlighting = true
         defer { isHighlighting = false }
 
         let fullString = textStorage.string
         let lines = fullString.components(separatedBy: "\n")
+
+        // Capture-and-clear: any fallback dirty-detection driven by the edited
+        // range applies only to this highlight pass. Clearing here also covers
+        // the early-return paths (stability / no-op) below.
+        let editedRangeForThisPass = lastEditedRange
+        lastEditedRange = nil
 
         // Evaluate the shared engine to populate functions and variables.
         let evaluationResults = engine.evaluate(lines: lines)
@@ -129,6 +150,22 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 if lines[i] != prev.lines[i] || lineClassifications[i] != prev.lineClassifications[i] {
                     firstDirty = i
                     break
+                }
+            }
+
+            // Fallback: when no line content changed but an edit still
+            // occurred (identical-content replacement), the edited range's
+            // attributes were reset to typing defaults. Force the touched
+            // line(s) dirty so they get re-colored. This is the path taken
+            // when autocomplete finalizes (type-through or Tab-accept).
+            if firstDirty == nil, let editedRange = editedRangeForThisPass, editedRange.length > 0 {
+                let nsFull = fullString as NSString
+                let editLocation = min(editedRange.location, nsFull.length)
+                let paragraphRange = nsFull.paragraphRange(for: NSRange(location: editLocation, length: 0))
+                let lineStart = (nsFull.substring(with: NSRange(location: 0, length: paragraphRange.location)) as NSString)
+                    .components(separatedBy: "\n").count - 1
+                if lineStart < lines.count {
+                    firstDirty = lineStart
                 }
             }
 

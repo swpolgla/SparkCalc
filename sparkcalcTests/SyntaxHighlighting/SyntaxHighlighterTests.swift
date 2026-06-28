@@ -193,6 +193,70 @@ struct SyntaxHighlighterTests {
         #expect(bColor?.isEqual(to: highlighter.theme.variableDeclaration) == true)
     }
 
+    // MARK: - Identical-content replacement (autocomplete finalize path)
+
+    /// Reproduces the syntax-highlighting regression reported after the
+    /// autocomplete crash fix: when an edit replaces text with identical content
+    /// (which is what happens when typing through a ghost completion or
+    /// Tab-accepting a suggestion), the new characters carry the text view's
+    /// `typingAttributes` (plain text), but the incremental highlighter's
+    /// line-by-line string comparison sees no change and skips re-coloring —
+    /// leaving the freshly inserted character unhighlighted until some other
+    /// edit disturbs the line again.
+    ///
+    /// The fix captures the actual edited `NSRange` from the textStorage
+    /// delegate and, when no line content changed, forces the touched line
+    /// dirty so its attributes are re-applied.
+    @Test func identicalContentReplacementReHighlightsResetAttributes() {
+        let ctx = makeHighlighter(text: "a = 5\na + 1")
+
+        // After initial forceFullHighlight, the second 'a' (line 2) carries
+        // variableUse color.
+        let aUseOffset = (ctx.textStorage.string as NSString)
+            .range(of: "a", options: .backwards).location
+        let initialColor = foregroundColor(at: aUseOffset, in: ctx.textStorage)
+        #expect(initialColor?.isEqual(to: ctx.highlighter.theme.variableUse) == true)
+
+        // Simulate the autocomplete-finalize scenario: an identical-content
+        // replacement at the variable-use character that resets its attribute
+        // to plain text (matching what super.insertCompletion / typed
+        // characters do via typingAttributes), while leaving the line content
+        // unchanged so the incremental highlighter's line-by-line comparison
+        // would otherwise see nothing to do.
+        ctx.textStorage.replaceCharacters(
+            in: NSRange(location: aUseOffset, length: 1),
+            with: "a"
+        )
+        ctx.textStorage.addAttribute(
+            .foregroundColor,
+            value: ctx.highlighter.theme.plainText,
+            range: NSRange(location: aUseOffset, length: 1)
+        )
+
+        // Confirm the reset actually stripped the highlight (this is the
+        // regression symptom: the typed-through char stays plain).
+        let resetColor = foregroundColor(at: aUseOffset, in: ctx.textStorage)
+        #expect(resetColor?.isEqual(to: ctx.highlighter.theme.plainText) == true)
+
+        // Drive the highlighter the way the delegate would after such an edit:
+        // capture the edited range, then run a highlight pass. Without the
+        // fix's lastEditedRange fallback, performHighlighting's line equality
+        // check would bail out and leave the char plain.
+        ctx.highlighter.textStorage(
+            ctx.textStorage,
+            didProcessEditing: [.editedCharacters],
+            range: NSRange(location: aUseOffset, length: 1),
+            changeInLength: 0
+        )
+        // The delegate dispatches performHighlighting onto the main queue; we
+        // also call it synchronously to make the test deterministic without
+        // relying on run-loop draining during a sync test.
+        ctx.highlighter.performHighlighting(on: ctx.textStorage)
+
+        let finalColor = foregroundColor(at: aUseOffset, in: ctx.textStorage)
+        #expect(finalColor?.isEqual(to: ctx.highlighter.theme.variableUse) == true)
+    }
+
     // MARK: - Operator Coloring
 
     @Test func operatorsGetOperatorColor() {
