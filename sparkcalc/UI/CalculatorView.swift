@@ -46,6 +46,7 @@ struct CalculatorView: View {
                             font: editorFont,
                             lineHeights: $sheet.lineHeights,
                             syntaxHighlighter: sheet.highlighter,
+                            engine: sheet.engine,
                             undoManager: sheet.undoManager,
                             isActive: isActive,
                             onSetup: { tv in

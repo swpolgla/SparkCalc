@@ -13,6 +13,8 @@ class ThemeSettings {
     var lineTintIntensity: Double = 0.75
     var defaultAnswerColumnFraction: CGFloat = 0.25
     var smartSubstitutionsEnabled: Bool = false
+    var autocompleteEnabled: Bool = true
+    var autocompleteMinimumPrefixLength: Int = 2
 
     static let presets: [PresetColor] = [
         PresetColor(name: "Label", color: .labelColor),
@@ -51,6 +53,8 @@ class ThemeSettings {
         lineTintIntensity = defaults.lineTintIntensity
         defaultAnswerColumnFraction = defaults.defaultAnswerColumnFraction
         smartSubstitutionsEnabled = defaults.smartSubstitutionsEnabled
+        autocompleteEnabled = defaults.autocompleteEnabled
+        autocompleteMinimumPrefixLength = defaults.autocompleteMinimumPrefixLength
     }
 
     /// Creates a `Binding<NSColor>` for a specific property of the current theme.

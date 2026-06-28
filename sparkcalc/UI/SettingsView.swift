@@ -35,6 +35,22 @@ struct SettingsView: View {
                     .accessibilityLabel("Default Output Pane Width")
             }
 
+            Section("Autocomplete") {
+                Toggle("Enable Autocomplete", isOn: $settings.autocompleteEnabled)
+
+                if settings.autocompleteEnabled {
+                    Stepper(value: $settings.autocompleteMinimumPrefixLength, in: 1...6) {
+                        HStack {
+                            Text("Show After")
+                            Spacer()
+                            Text("\(settings.autocompleteMinimumPrefixLength) characters")
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
             Section("Syntax Colors") {
                 ColorSettingRow(title: "Answer", color: settings.binding(for: \.answer))
                 ColorSettingRow(title: "Function Call", color: settings.binding(for: \.functionCall))

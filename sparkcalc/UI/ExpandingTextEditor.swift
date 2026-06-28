@@ -20,6 +20,197 @@ class GrowingTextView: NSTextView {
     /// When `false`, blocks automatic period substitution from double-space.
     var smartSubstitutionsEnabled: Bool = false
 
+    var autocompleteEnabled: Bool = true
+    var autocompleteMinimumPrefixLength: Int = 2
+    weak var autocompleteEngine: CalculatorEngine?
+    let autocompleteProvider = AutocompleteProvider()
+    var isUpdatingAutocompleteGhost = false
+    private var activeAutocompleteSelection: NSRange?
+    private var activeAutocompleteRange: NSRange?
+    private lazy var autocompletePopup = AutocompletePopupController { [weak self] suggestion in
+        self?.acceptAutocomplete(suggestion)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53, cancelAutocomplete() {
+            return
+        }
+        if event.keyCode == 125, autocompletePopup.isShown {
+            if let suggestion = autocompletePopup.moveSelection(1) {
+                updateAutocompleteGhost(to: suggestion)
+            }
+            return
+        }
+        if event.keyCode == 126, autocompletePopup.isShown {
+            if let suggestion = autocompletePopup.moveSelection(-1) {
+                updateAutocompleteGhost(to: suggestion)
+            }
+            return
+        }
+        if event.keyCode == 36, let suggestion = autocompletePopup.selectedSuggestion {
+            acceptAutocomplete(suggestion)
+            return
+        }
+        if event.keyCode == 51, deleteBackwardFromActiveAutocomplete() {
+            return
+        }
+        if event.keyCode == 48, acceptBestAutocomplete() {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func insertCompletion(_ word: String, forPartialWordRange charRange: NSRange, movement: Int, isFinal flag: Bool) {
+        let insertedWord = flag ? finalInsertionText(for: word, range: charRange) : word
+        isUpdatingAutocompleteGhost = !flag
+        defer { isUpdatingAutocompleteGhost = false }
+        super.insertCompletion(insertedWord, forPartialWordRange: charRange, movement: movement, isFinal: flag)
+
+        activeAutocompleteSelection = flag ? nil : selectedRange()
+        activeAutocompleteRange = flag ? nil : charRange
+
+        guard flag, let openParen = insertedWord.firstIndex(of: "("), let closeParen = insertedWord.lastIndex(of: ")"), openParen < closeParen else { return }
+        let innerStart = insertedWord.index(after: openParen).utf16Offset(in: insertedWord)
+        let innerLength = closeParen.utf16Offset(in: insertedWord) - innerStart
+        setSelectedRange(NSRange(location: charRange.location + innerStart, length: innerLength))
+    }
+
+    private func finalInsertionText(for word: String, range: NSRange) -> String {
+        guard let engine = autocompleteEngine else { return word }
+        return autocompleteProvider.suggestions(
+            in: string,
+            cursorLocation: NSMaxRange(range),
+            engine: engine,
+            minimumPrefixLength: autocompleteMinimumPrefixLength
+        ).first { $0.name == word }?.insertionText ?? word
+    }
+
+    private func deleteBackwardFromActiveAutocomplete() -> Bool {
+        let selected = selectedRange()
+        guard let activeAutocompleteSelection,
+              selected == activeAutocompleteSelection,
+              selected.length > 0,
+              selected.location > 0
+        else { return false }
+
+        self.activeAutocompleteSelection = nil
+        activeAutocompleteRange = nil
+        autocompletePopup.close()
+        let deletionRange = NSRange(location: selected.location - 1, length: selected.length + 1)
+        guard shouldChangeText(in: deletionRange, replacementString: "") else { return true }
+        textStorage?.replaceCharacters(in: deletionRange, with: "")
+        setSelectedRange(NSRange(location: deletionRange.location, length: 0))
+        didChangeText()
+        return true
+    }
+
+    private func acceptBestAutocomplete() -> Bool {
+        if let suggestion = autocompletePopup.selectedSuggestion {
+            acceptAutocomplete(suggestion)
+            return true
+        }
+
+        guard autocompleteEnabled, let engine = autocompleteEngine else { return false }
+
+        let location = activeAutocompleteRange.map(NSMaxRange) ?? selectedRange().location
+        guard let range = autocompleteProvider.completionRange(in: string, cursorLocation: location) else { return false }
+        let suggestions = autocompleteProvider.suggestions(
+            in: string,
+            cursorLocation: location,
+            engine: engine,
+            minimumPrefixLength: autocompleteMinimumPrefixLength
+        )
+        guard let best = suggestions.first else { return false }
+        acceptAutocomplete(best, range: range)
+        return true
+    }
+
+    func showAutocomplete(suggestions: [AutocompleteSuggestion], range: NSRange) {
+        guard let first = suggestions.first else {
+            closeAutocomplete()
+            return
+        }
+
+        insertCompletion(first.name, forPartialWordRange: range, movement: NSOtherTextMovement, isFinal: false)
+        autocompletePopup.show(suggestions: suggestions, relativeTo: self)
+    }
+
+    func closeAutocomplete() {
+        activeAutocompleteSelection = nil
+        activeAutocompleteRange = nil
+        autocompletePopup.close()
+    }
+
+    func discardAutocomplete() {
+        guard let ghostRange = activeAutocompleteSelection else {
+            closeAutocomplete()
+            return
+        }
+
+        let selection = selectedRange()
+        closeAutocomplete()
+        guard ghostRange.length > 0,
+              NSMaxRange(ghostRange) <= (string as NSString).length,
+              shouldChangeText(in: ghostRange, replacementString: "")
+        else { return }
+
+        isUpdatingAutocompleteGhost = true
+        textStorage?.replaceCharacters(in: ghostRange, with: "")
+        let adjustedSelection = if NSIntersectionRange(selection, ghostRange).length > 0 {
+            NSRange(location: ghostRange.location, length: 0)
+        } else if selection.location >= NSMaxRange(ghostRange) {
+            NSRange(
+                location: selection.location - ghostRange.length,
+                length: selection.length
+            )
+        } else {
+            selection
+        }
+        setSelectedRange(adjustedSelection)
+        didChangeText()
+        isUpdatingAutocompleteGhost = false
+    }
+
+    func discardAutocompleteIfSelectionMoved() {
+        guard !isUpdatingAutocompleteGhost,
+              let activeAutocompleteSelection,
+              selectedRange() != activeAutocompleteSelection
+        else { return }
+        discardAutocomplete()
+    }
+
+    private func acceptAutocomplete(_ suggestion: AutocompleteSuggestion, range: NSRange? = nil) {
+        let completionRange = range ?? activeAutocompleteRange
+        guard let completionRange else { return }
+        activeAutocompleteSelection = nil
+        activeAutocompleteRange = nil
+        autocompletePopup.close()
+        insertCompletion(suggestion.name, forPartialWordRange: completionRange, movement: NSTabTextMovement, isFinal: true)
+    }
+
+    private func updateAutocompleteGhost(to suggestion: AutocompleteSuggestion) {
+        guard let activeAutocompleteRange else { return }
+        insertCompletion(suggestion.name, forPartialWordRange: activeAutocompleteRange, movement: NSOtherTextMovement, isFinal: false)
+    }
+
+    private func cancelAutocomplete() -> Bool {
+        guard let activeAutocompleteSelection,
+              selectedRange() == activeAutocompleteSelection
+        else {
+            autocompletePopup.close()
+            return false
+        }
+
+        guard shouldChangeText(in: activeAutocompleteSelection, replacementString: "") else { return true }
+        textStorage?.replaceCharacters(in: activeAutocompleteSelection, with: "")
+        setSelectedRange(NSRange(location: activeAutocompleteSelection.location, length: 0))
+        self.activeAutocompleteSelection = nil
+        activeAutocompleteRange = nil
+        autocompletePopup.close()
+        didChangeText()
+        return true
+    }
+
     override func insertText(_ string: Any, replacementRange: NSRange) {
         if !smartSubstitutionsEnabled,
            let text = string as? String,
@@ -105,6 +296,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
     let font: NSFont
     @Binding var lineHeights: [CGFloat]
     let syntaxHighlighter: SyntaxHighlighter
+    let engine: CalculatorEngine
     let undoManager: UndoManager
     let isActive: Bool
     var onSetup: (GrowingTextView) -> Void
@@ -118,6 +310,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         let textView = GrowingTextView()
         textView.sheetUndoManager = undoManager
         textView.isActive = isActive
+        textView.autocompleteEngine = engine
         textView.isRichText = false
         textView.font = font
         textView.backgroundColor = .clear
@@ -141,6 +334,8 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // `insertText` override in GrowingTextView when smartSubstitutionsEnabled
         // is false.
         textView.smartSubstitutionsEnabled = smartSubs
+        textView.autocompleteEnabled = themeSettings.autocompleteEnabled
+        textView.autocompleteMinimumPrefixLength = themeSettings.autocompleteMinimumPrefixLength
 
         textView.delegate = context.coordinator
         textView.layoutManager?.delegate = context.coordinator
@@ -187,7 +382,11 @@ struct ExpandingTextEditor: NSViewRepresentable {
         }
 
         // Keep first-responder eligibility in sync with visibility
+        if nsView.isActive, !isActive {
+            nsView.discardAutocomplete()
+        }
         nsView.isActive = isActive
+        nsView.autocompleteEngine = engine
 
         // Keep smart substitution flags in sync with settings
         let smartSubs = themeSettings.smartSubstitutionsEnabled
@@ -199,6 +398,12 @@ struct ExpandingTextEditor: NSViewRepresentable {
             // Period substitution handled via insertText override (see makeNSView).
             nsView.smartSubstitutionsEnabled = smartSubs
         }
+
+        if nsView.autocompleteEnabled, !themeSettings.autocompleteEnabled {
+            nsView.discardAutocomplete()
+        }
+        nsView.autocompleteEnabled = themeSettings.autocompleteEnabled
+        nsView.autocompleteMinimumPrefixLength = themeSettings.autocompleteMinimumPrefixLength
     }
 
     static func dismantleNSView(_ nsView: GrowingTextView, coordinator _: Coordinator) {
@@ -207,6 +412,7 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // this text view so dangling targets don't remain in the undo manager
         // after the view is deallocated.
         nsView.sheetUndoManager?.removeAllActions(withTarget: nsView)
+        nsView.closeAutocomplete()
         nsView.textStorage?.delegate = nil
         nsView.layoutManager?.delegate = nil
     }
@@ -252,27 +458,77 @@ struct ExpandingTextEditor: NSViewRepresentable {
         }
 
         private var lastEditWasAtomic = false
+        private var lastEditWasDeletion = false
 
         func textView(_: NSTextView,
                       shouldChangeTextIn affectedCharRange: NSRange,
                       replacementString: String?) -> Bool
         {
             let isInsert = (replacementString?.count == 1 && affectedCharRange.length == 0)
-            let isDelete = (replacementString?.isEmpty == true && affectedCharRange.length == 1)
+            let isDelete = (replacementString?.isEmpty == true && affectedCharRange.length > 0)
             lastEditWasAtomic = isInsert || isDelete
+            lastEditWasDeletion = isDelete
             return true
         }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? GrowingTextView else { return }
-            // Update SwiftUI mirror state
-            parent.text = tv.string
             tv.invalidateIntrinsicContentSize()
             updateLineHeights(for: tv)
+
+            // Ghost completions temporarily live in NSTextStorage for AppKit's
+            // native completion behavior, but must not become sheet input.
+            // Accepted completions are final edits and continue below normally.
+            if tv.isUpdatingAutocompleteGhost {
+                return
+            }
+
+            // Update SwiftUI mirror state
+            parent.text = tv.string
 
             if lastEditWasAtomic {
                 tv.breakUndoCoalescing()
             }
+
+            if lastEditWasDeletion {
+                tv.closeAutocomplete()
+                return
+            }
+
+            showAutocompleteIfNeeded(for: tv)
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let tv = notification.object as? GrowingTextView else { return }
+            tv.discardAutocompleteIfSelectionMoved()
+        }
+
+        private func showAutocompleteIfNeeded(for textView: GrowingTextView) {
+            guard textView.autocompleteEnabled,
+                  textView.selectedRange().length == 0,
+                  let engine = textView.autocompleteEngine
+            else {
+                textView.closeAutocomplete()
+                return
+            }
+
+            let cursorLocation = textView.selectedRange().location
+            guard let range = textView.autocompleteProvider.completionRange(in: textView.string, cursorLocation: cursorLocation) else {
+                textView.closeAutocomplete()
+                return
+            }
+            let suggestions = textView.autocompleteProvider.suggestions(
+                in: textView.string,
+                cursorLocation: cursorLocation,
+                engine: engine,
+                minimumPrefixLength: textView.autocompleteMinimumPrefixLength
+            )
+            guard !suggestions.isEmpty else {
+                textView.closeAutocomplete()
+                return
+            }
+
+            textView.showAutocomplete(suggestions: suggestions, range: range)
         }
 
         func layoutManager(_: NSLayoutManager,
