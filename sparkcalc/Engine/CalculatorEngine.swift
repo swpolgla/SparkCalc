@@ -168,13 +168,17 @@ final class CalculatorEngine {
         while i < lines.count {
             let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
 
-            if let funcDef = tryParseFunctionHeader(trimmed) {
+            if let funcDef = tryParseFunctionHeader(trimmed),
+               let closingIndex = lines[(i + 1)...].firstIndex(where: {
+                   $0.trimmingCharacters(in: .whitespaces) == "}"
+               })
+            {
                 annotated.append(.functionLine)
                 i += 1
 
                 var bodyLines: [String] = []
 
-                while i < lines.count {
+                while i <= closingIndex {
                     let bodyLine = lines[i].trimmingCharacters(in: .whitespaces)
                     annotated.append(.functionLine)
                     i += 1
@@ -211,7 +215,19 @@ final class CalculatorEngine {
         }
         let name = String(line[nameRange])
         let rawParams = String(line[paramsRange])
-        let params = rawParams.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let params: [String]
+        if rawParams.trimmingCharacters(in: .whitespaces).isEmpty {
+            params = []
+        } else {
+            params = rawParams
+                .split(separator: ",", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            guard params.allSatisfy(tokenizer.isValidIdentifier),
+                  Set(params).count == params.count
+            else {
+                return nil
+            }
+        }
         return FunctionHeader(name: name, parameters: params)
     }
 
@@ -451,7 +467,8 @@ final class CalculatorEngine {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
 
-            if trimmed.hasPrefix("return") {
+            let returnSuffix = trimmed.dropFirst(min("return".count, trimmed.count))
+            if trimmed == "return" || (trimmed.hasPrefix("return") && returnSuffix.first?.isWhitespace == true) {
                 let rest = trimmed.dropFirst("return".count).trimmingCharacters(in: .whitespaces)
                 return try evaluateExpression(rest, localVars: localVars)
             }

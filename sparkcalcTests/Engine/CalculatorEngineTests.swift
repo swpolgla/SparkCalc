@@ -711,4 +711,35 @@ struct CalculatorEngineTests {
         ])
         #expect(results == ["5", "", "", "", "8"])
     }
+
+    @Test func unterminatedFunctionDoesNotConsumeRemainingLines() {
+        let engine = CalculatorEngine()
+        let results = engine.evaluate(lines: [
+            "f(x) {",
+            "1 + 1",
+            "2 + 2"
+        ])
+        #expect(results == ["", "2", "4"])
+        #expect(engine.functions.isEmpty)
+    }
+
+    @Test func returnMustBeACompleteKeyword() {
+        let engine = CalculatorEngine()
+        let results = engine.evaluate(lines: [
+            "f(returnValue) {",
+            "returnValue + 1",
+            "return 9",
+            "}",
+            "f(2)"
+        ])
+        #expect(results.last == "9")
+    }
+
+    @Test func malformedFunctionParametersRejectHeader() {
+        let engine = CalculatorEngine()
+        #expect(engine.tryParseFunctionHeader("f(a,,b) {") == nil)
+        #expect(engine.tryParseFunctionHeader("f(1a) {") == nil)
+        #expect(engine.tryParseFunctionHeader("f(a, a) {") == nil)
+        #expect(engine.tryParseFunctionHeader("f(a,) {") == nil)
+    }
 }

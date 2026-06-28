@@ -63,7 +63,7 @@ struct SheetStoreTests {
         store.addSheet()
         let firstId = store.sheets[0].id
         let secondId = store.sheets[1].id
-        store.moveSheet(id: firstId, to: 1)
+        store.moveSheet(id: firstId, to: 2)
         #expect(store.sheets[1].id == firstId)
         #expect(store.sheets[0].id == secondId)
     }
@@ -128,6 +128,14 @@ struct SheetStoreTests {
         #expect(store.activeSheetId == originalActive)
     }
 
+    @Test func removeOnlySheetWithInvalidIdDoesNothing() {
+        let store = SheetStore()
+        let originalId = store.sheets[0].id
+        store.removeSheet(id: UUID())
+        #expect(store.sheets.map(\.id) == [originalId])
+        #expect(store.activeSheetId == originalId)
+    }
+
     @Test func removeLastSheetSetsActiveIdToReplacement() {
         let store = SheetStore()
         let oldActive = store.activeSheetId
@@ -181,11 +189,12 @@ struct SheetStoreTests {
         #expect(store.sheets[0].name == "Hello World")
     }
 
-    @Test func renameSheetWithOnlyWhitespaceBecomesEmpty() {
+    @Test func renameSheetWithOnlyWhitespacePreservesName() {
         let store = SheetStore()
         let id = store.sheets[0].id
+        let originalName = store.sheets[0].name
         store.renameSheet(id: id, to: "   \n   ")
-        #expect(store.sheets[0].name == "")
+        #expect(store.sheets[0].name == originalName)
     }
 
     @Test func renameSheetWithInvalidIdDoesNothing() {
@@ -222,6 +231,55 @@ struct SheetStoreTests {
         let lastId = store.sheets[2].id
         store.moveSheet(id: lastId, to: 0)
         #expect(store.sheets[0].id == lastId)
+    }
+
+    @Test func moveSheetForwardByOneUsesOriginalInsertionBoundary() {
+        let store = SheetStore()
+        store.addSheet()
+        store.addSheet()
+        let ids = store.sheets.map(\.id)
+        store.moveSheet(id: ids[0], to: 2)
+        #expect(store.sheets.map(\.id) == [ids[1], ids[0], ids[2]])
+    }
+
+    @Test func moveSheetForwardToEnd() {
+        let store = SheetStore()
+        store.addSheet()
+        store.addSheet()
+        let ids = store.sheets.map(\.id)
+        store.moveSheet(id: ids[0], to: 3)
+        #expect(store.sheets.map(\.id) == [ids[1], ids[2], ids[0]])
+    }
+
+    @Test func requestCloseEmptySheetRemovesImmediately() {
+        let store = SheetStore()
+        let originalId = store.sheets[0].id
+        store.requestCloseSheet(id: originalId)
+        #expect(store.sheets[0].id != originalId)
+        #expect(store.sheetPendingDeletionId == nil)
+    }
+
+    @Test func requestClosePopulatedSheetRequiresConfirmation() {
+        let store = SheetStore()
+        let sheet = store.sheets[0]
+        sheet.inputText = "1 + 1"
+        store.requestCloseSheet(id: sheet.id)
+        #expect(store.sheets[0].id == sheet.id)
+        #expect(store.sheetPendingDeletionId == sheet.id)
+
+        store.confirmPendingSheetDeletion()
+        #expect(store.sheets[0].id != sheet.id)
+        #expect(store.sheetPendingDeletionId == nil)
+    }
+
+    @Test func pendingSheetDeletionCanBeCancelled() {
+        let store = SheetStore()
+        let sheet = store.sheets[0]
+        sheet.inputText = "1 + 1"
+        store.requestCloseSheet(id: sheet.id)
+        store.cancelPendingSheetDeletion()
+        #expect(store.sheets[0].id == sheet.id)
+        #expect(store.sheetPendingDeletionId == nil)
     }
 
     @Test func addSheetIncrementsNames() {

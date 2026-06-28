@@ -105,7 +105,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         let lines = fullString.components(separatedBy: "\n")
 
         // Evaluate the shared engine to populate functions and variables.
-        engine.evaluate(lines: lines)
+        let evaluationResults = engine.evaluate(lines: lines)
 
         // Build line classifications
         let lineClassifications = buildLineClassifications(lines: lines, engine: engine)
@@ -193,6 +193,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 classification: classification,
                 charOffset: charOffset,
                 knownVariables: &knownVariables,
+                assignmentSucceeded: !evaluationResults[i].isEmpty,
                 classificationEngine: engine,
                 textStorage: textStorage
             )
@@ -249,11 +250,15 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         while i < lines.count {
             let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
 
-            if let header = engine.tryParseFunctionHeader(trimmed) {
+            if let header = engine.tryParseFunctionHeader(trimmed),
+               let closingIndex = lines[(i + 1)...].firstIndex(where: {
+                   $0.trimmingCharacters(in: .whitespaces) == "}"
+               })
+            {
                 classifications.append(.functionHeader(header.name))
                 i += 1
 
-                while i < lines.count {
+                while i <= closingIndex {
                     let bodyLine = lines[i].trimmingCharacters(in: .whitespaces)
                     if bodyLine == "}" {
                         classifications.append(.functionClose)
@@ -279,6 +284,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         classification: LineKind,
         charOffset: Int,
         knownVariables: inout Set<String>,
+        assignmentSucceeded: Bool,
         classificationEngine: CalculatorEngine,
         textStorage: NSTextStorage
     ) {
@@ -314,6 +320,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                 line: line,
                 charOffset: charOffset,
                 knownVariables: &knownVariables,
+                assignmentSucceeded: assignmentSucceeded,
                 classificationEngine: classificationEngine,
                 textStorage: textStorage
             )
@@ -326,6 +333,7 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
         line: String,
         charOffset: Int,
         knownVariables: inout Set<String>,
+        assignmentSucceeded: Bool,
         classificationEngine: CalculatorEngine,
         textStorage: NSTextStorage
     ) {
@@ -343,7 +351,6 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
             // Left side: declaration
             let varName = leftSide.trimmingCharacters(in: .whitespaces)
             if classificationEngine.isValidIdentifier(varName) {
-                knownVariables.insert(varName)
                 if let leftTokens = try? classificationEngine.tokenize(leftSide) {
                     for locatedToken in leftTokens {
                         let tokenNSRange = nsRange(from: locatedToken.range, in: leftSide, charOffset: leftOffset)
@@ -367,6 +374,9 @@ final class SyntaxHighlighter: NSObject, NSTextStorageDelegate {
                     classificationEngine: classificationEngine,
                     textStorage: textStorage
                 )
+            }
+            if assignmentSucceeded, classificationEngine.isValidIdentifier(varName) {
+                knownVariables.insert(varName)
             }
         } else {
             // No '=' present

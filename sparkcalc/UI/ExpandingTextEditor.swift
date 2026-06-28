@@ -366,9 +366,19 @@ struct ExpandingTextEditor: NSViewRepresentable {
         // Keep coordinator's parent reference in sync (defensive — standard pattern).
         context.coordinator.parent = self
 
-        // IMPORTANT: Do not continuously push `text` into the NSTextView.
-        // Doing so breaks native undo/redo. The NSTextView is the source of truth
-        // during normal editing. We will update SwiftUI state from textDidChange.
+        // Normal editor changes update the binding in textDidChange, so both values
+        // already match here. A mismatch therefore represents an external model
+        // replacement (document load, restore, or clear), which must be reflected
+        // without adding an undo step. Ghost completions intentionally exist only
+        // in NSTextStorage and must not trigger this synchronization.
+        if !nsView.isUpdatingAutocompleteGhost, nsView.string != text {
+            Self.setEditorText(
+                nsView,
+                text,
+                registerUndo: false,
+                syntaxHighlighter: syntaxHighlighter
+            )
+        }
 
         // Keep font in sync (guarded)
         if nsView.font != font {

@@ -102,6 +102,15 @@ struct SyntaxHighlighterTests {
         #expect(aUseColor?.isEqual(to: ctx.highlighter.theme.variableUse) == true)
     }
 
+    @Test func failedAssignmentDoesNotMakeVariableKnown() {
+        let text = "x = missing\nx + 1"
+        let ctx = makeHighlighter(text: text)
+        let secondX = (text as NSString).range(of: "x", options: .backwards).location
+        let xUseColor = foregroundColor(at: secondX, in: ctx.textStorage)
+        #expect(xUseColor?.isEqual(to: ctx.highlighter.theme.variableUse) != true)
+        #expect(xUseColor?.isEqual(to: ctx.highlighter.theme.plainText) == true)
+    }
+
     @Test func functionCallGetsFunctionCallColor() {
         // "sqrt(16)" — 'sqrt' should get functionCall, '16' gets number
         let ctx = makeHighlighter(text: "sqrt(16)")

@@ -27,7 +27,6 @@ struct TabBarView: View {
     @State private var dropTargetIndex: Int?
     @State private var tabFrames: [UUID: CGRect] = [:]
     @State private var scrollContainerWidth: CGFloat = 0
-    @State private var sheetToDelete: UUID?
     @FocusState private var renameFieldIsFocused: Bool
 
     private var showLeadingChevron: Bool {
@@ -104,17 +103,16 @@ struct TabBarView: View {
             .confirmationDialog(
                 "Delete this sheet?",
                 isPresented: Binding(
-                    get: { sheetToDelete != nil },
-                    set: { if !$0 { sheetToDelete = nil } }
+                    get: { store.sheetPendingDeletionId != nil },
+                    set: { if !$0 { store.cancelPendingSheetDeletion() } }
                 ),
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    if let id = sheetToDelete { store.removeSheet(id: id) }
-                    sheetToDelete = nil
+                    store.confirmPendingSheetDeletion()
                 }
                 Button("Cancel", role: .cancel) {
-                    sheetToDelete = nil
+                    store.cancelPendingSheetDeletion()
                 }
             } message: {
                 Text("This sheet contains calculations that will be lost.")
@@ -196,11 +194,7 @@ struct TabBarView: View {
 
                 if isActive || isHovered {
                     Button(action: {
-                        if sheet.inputText.isEmpty {
-                            store.removeSheet(id: sheet.id)
-                        } else {
-                            sheetToDelete = sheet.id
-                        }
+                        store.requestCloseSheet(id: sheet.id)
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .bold))
